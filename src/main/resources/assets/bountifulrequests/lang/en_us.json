@@ -7,47 +7,46 @@
   "bountifulrequests.gui.duration": "Duration",
   "bountifulrequests.gui.duration_minutes": "Duration (minutes)",
   "bountifulrequests.gui.rarity": "Rarity: %s",
-
   "bountifulrequests.gui.create_paper": "Create Paper",
   "bountifulrequests.gui.publish_now": "Publish Now",
   "bountifulrequests.gui.add_rotation": "Add Rotation",
   "bountifulrequests.gui.rotation_uses": "Uses",
-
   "bountifulrequests.gui.cancel_draft": "Cancel Draft",
   "bountifulrequests.gui.undo": "Undo Publication",
   "bountifulrequests.gui.pending": "Publication pending...",
-
   "bountifulrequests.gui.collect_deliveries": "Deliveries (%s)",
   "bountifulrequests.gui.collect_returns": "Returns (%s)",
-
   "bountifulrequests.gui.select_type": "Select Objective Type",
   "bountifulrequests.gui.objective.item": "Item",
   "bountifulrequests.gui.objective.entity": "Eliminate Entity",
   "bountifulrequests.gui.objective.tag": "Item Tag",
   "bountifulrequests.gui.objective.bountiful": "Bountiful Entry",
-
   "bountifulrequests.gui.search": "Search...",
   "bountifulrequests.gui.amount": "Amount",
   "bountifulrequests.gui.back": "Back",
-
   "bountifulrequests.message.missing_title": "Your request needs a title.",
   "bountifulrequests.message.missing_objective": "Your request needs at least one objective.",
   "bountifulrequests.message.missing_reward": "You must deposit at least one reward item.",
   "bountifulrequests.message.admin_only": "Only administrators can create rotations.",
   "bountifulrequests.message.too_many_objectives": "A request can have a maximum of 8 objectives.",
-
   "bountifulrequests.message.not_enough_rotation_rewards": "You do not have enough matching items to fund all rotation rewards.",
   "bountifulrequests.message.pending": "Publication will become active in %s seconds.",
   "bountifulrequests.message.publication_cancelled": "Publication cancelled. You can continue editing.",
   "bountifulrequests.message.published": "Request published successfully.",
-
   "bountifulrequests.message.invalid_request": "This request no longer exists.",
   "bountifulrequests.message.expired": "This request has expired.",
   "bountifulrequests.message.not_claimed": "This request is not reserved for you.",
   "bountifulrequests.message.request_completed": "Your request '%s' was completed by %s.",
-
   "bountifulrequests.command.list_header": "Bountiful Requests:",
   "bountifulrequests.command.not_found": "Request not found.",
   "bountifulrequests.command.invalid_id": "Invalid request ID.",
-  "bountifulrequests.command.removed": "Request removed."
+  "bountifulrequests.command.removed": "Request removed.",
+  "bountifulrequests.gui.confirm.title": "Confirm action",
+  "bountifulrequests.gui.confirm.create_paper": "Create this request paper?",
+  "bountifulrequests.gui.confirm.publish_now": "Publish this request now?",
+  "bountifulrequests.gui.confirm.rotation": "Add this rotation with %s uses?",
+  "bountifulrequests.gui.confirm.cancel_draft": "Cancel this draft?",
+  "bountifulrequests.gui.confirm.note": "You can go back and keep editing before confirming.",
+  "bountifulrequests.gui.confirm.confirm": "Confirm",
+  "bountifulrequests.gui.confirm.keep_editing": "Keep editing"
 }
