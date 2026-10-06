@@ -1,6 +1,5 @@
 package org.crafterscr.bountifulrequests.client;
 
-import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Locale;
@@ -31,13 +30,23 @@ import net.minecraft.world.item.Items;
 import net.neoforged.neoforge.network.PacketDistributor;
 
 /**
- * GUI principal.
+ * Editor principal de Bountiful Requests.
  *
- * No utiliza una textura externa en esta V1.
- * Todo se dibuja programáticamente.
+ * El diseño se dibuja programáticamente para no depender de una textura GUI.
+ * Toda acción sensible sigue validándose en el servidor.
  */
 public final class RequestEditorScreen
         extends AbstractContainerScreen<RequestEditorMenu> {
+
+    private static final int GUI_WIDTH = 350;
+    private static final int GUI_HEIGHT = 278;
+
+    // Deben coincidir con RequestEditorMenu.
+    private static final int REWARD_X = 260;
+    private static final int REWARD_Y = 55;
+    private static final int INVENTORY_X = 40;
+    private static final int INVENTORY_Y = 178;
+    private static final int HOTBAR_Y = INVENTORY_Y + 58;
 
     private enum Mode {
         MAIN,
@@ -45,23 +54,35 @@ public final class RequestEditorScreen
         ITEM_BROWSER,
         ENTITY_BROWSER,
         TAG_BROWSER,
-        BOUNTIFUL_BROWSER
+        BOUNTIFUL_BROWSER,
+        CONFIRMATION
+    }
+
+    /**
+     * La confirmación es puramente previa.
+     * Nada se publica hasta que el usuario pulse Confirmar.
+     */
+    private enum ConfirmAction {
+        CREATE_PAPER,
+        PUBLISH_BOARD,
+        PUBLISH_ROTATION,
+        CANCEL_DRAFT
     }
 
     private DraftView state;
 
     private Mode mode = Mode.MAIN;
+    private ConfirmAction confirmAction;
 
     private EditBox titleBox;
     private EditBox durationBox;
-
     private EditBox searchBox;
     private EditBox amountBox;
     private EditBox usesBox;
 
     private int browserOffset = 0;
-
     private int localRarity = 0;
+    private int confirmedRotationUses = 1;
 
     public RequestEditorScreen(
             RequestEditorMenu menu,
@@ -70,11 +91,12 @@ public final class RequestEditorScreen
     ) {
         super(menu, inventory, title);
 
-        imageWidth = 338;
-        imageHeight = 230;
+        imageWidth = GUI_WIDTH;
+        imageHeight = GUI_HEIGHT;
 
-        inventoryLabelY = 132;
-        inventoryLabelX = 88;
+        // Los títulos vanilla se ocultan en renderLabels().
+        inventoryLabelX = INVENTORY_X;
+        inventoryLabelY = 165;
     }
 
     @Override
@@ -82,22 +104,33 @@ public final class RequestEditorScreen
         super.init();
 
         PacketDistributor.sendToServer(
-                EditorActionPayload.simple(
-                        "SYNC"
-                )
+                EditorActionPayload.simple("SYNC")
         );
     }
 
-    public void onServerSync(
-            DraftView view
+    /**
+     * Evita que AbstractContainerScreen pinte el título e inventario
+     * por defecto encima de nuestro layout personalizado.
+     */
+    @Override
+    protected void renderLabels(
+            GuiGraphics graphics,
+            int mouseX,
+            int mouseY
     ) {
+        // Se dibujan manualmente en renderBg().
+    }
+
+    public void onServerSync(DraftView view) {
         this.state = view;
         this.localRarity = view.rarity();
 
         /*
-         * Si acaba de publicarse, volvemos a MAIN.
+         * Un sync normalmente significa que una acción terminó o que el
+         * servidor actualizó el borrador. Volvemos a la vista principal.
          */
         mode = Mode.MAIN;
+        confirmAction = null;
 
         rebuildWidgets();
     }
@@ -106,57 +139,50 @@ public final class RequestEditorScreen
     protected void rebuildWidgets() {
         clearWidgets();
 
+        // Evita mantener referencias a EditBox que ya no están en pantalla.
+        titleBox = null;
+        durationBox = null;
+        searchBox = null;
+        amountBox = null;
+        usesBox = null;
+
         if (state == null) {
             return;
         }
 
-        boolean pending =
-                !"NONE".equals(
-                        state.pendingMode()
-                );
-
-        if (pending) {
-            buildPendingWidgets();
-            return;
-        }
-
         switch (mode) {
-            case MAIN ->
-                    buildMainWidgets();
-
-            case TYPE_SELECTOR ->
-                    buildTypeWidgets();
-
+            case MAIN -> buildMainWidgets();
+            case TYPE_SELECTOR -> buildTypeWidgets();
             case ITEM_BROWSER,
                  ENTITY_BROWSER,
                  TAG_BROWSER,
-                 BOUNTIFUL_BROWSER ->
-                    buildBrowserWidgets();
+                 BOUNTIFUL_BROWSER -> buildBrowserWidgets();
+            case CONFIRMATION -> buildConfirmationWidgets();
         }
     }
 
-    // ------------------------------------------------------------
+    // ---------------------------------------------------------------------
     // MAIN
-    // ------------------------------------------------------------
+    // ---------------------------------------------------------------------
 
     private void buildMainWidgets() {
         int x = leftPos;
         int y = topPos;
 
-        titleBox =
-                new EditBox(
-                        font,
-                        x + 15,
-                        y + 25,
-                        190,
-                        18,
-                        Component.translatable(
-                                "bountifulrequests.gui.title_field"
-                        )
-                );
+        titleBox = new EditBox(
+                font,
+                x + 16,
+                y + 36,
+                210,
+                18,
+                Component.translatable(
+                        "bountifulrequests.gui.title_field"
+                )
+        );
 
         titleBox.setMaxLength(64);
         titleBox.setValue(state.title());
+        titleBox.setTextColor(0xFFFFFF);
 
         titleBox.setResponder(value ->
                 PacketDistributor.sendToServer(
@@ -173,17 +199,16 @@ public final class RequestEditorScreen
 
         addRenderableWidget(titleBox);
 
-        durationBox =
-                new EditBox(
-                        font,
-                        x + 15,
-                        y + 112,
-                        58,
-                        18,
-                        Component.translatable(
-                                "bountifulrequests.gui.duration"
-                        )
-                );
+        durationBox = new EditBox(
+                font,
+                x + 16,
+                y + 144,
+                58,
+                18,
+                Component.translatable(
+                        "bountifulrequests.gui.duration"
+                )
+        );
 
         durationBox.setValue(
                 Long.toString(
@@ -204,9 +229,7 @@ public final class RequestEditorScreen
                                             (localRarity + 1)
                                                     % BountyRarity.values().length;
 
-                                    button.setMessage(
-                                            rarityText()
-                                    );
+                                    button.setMessage(rarityText());
 
                                     PacketDistributor.sendToServer(
                                             new EditorActionPayload(
@@ -221,9 +244,9 @@ public final class RequestEditorScreen
                                 }
                         )
                         .bounds(
-                                x + 80,
-                                y + 112,
-                                125,
+                                x + 82,
+                                y + 144,
+                                144,
                                 18
                         )
                         .build()
@@ -236,32 +259,26 @@ public final class RequestEditorScreen
                                 ),
                                 button -> {
                                     syncDuration();
-
-                                    mode =
-                                            Mode.TYPE_SELECTOR;
-
+                                    mode = Mode.TYPE_SELECTOR;
                                     rebuildWidgets();
                                 }
                         )
                         .bounds(
-                                x + 15,
-                                y + 84,
-                                190,
+                                x + 16,
+                                y + 112,
+                                210,
                                 20
                         )
                         .build()
         );
 
         /*
-         * Remove buttons de objetivos.
+         * Botones para quitar los objetivos visibles.
          */
-        int objectiveY = y + 51;
+        int objectiveY = y + 72;
 
         for (int i = 0;
-             i < Math.min(
-                     state.objectives().size(),
-                     3
-             );
+             i < Math.min(state.objectives().size(), 3);
              i++) {
 
             final int index = i;
@@ -269,31 +286,31 @@ public final class RequestEditorScreen
             addRenderableWidget(
                     Button.builder(
                                     Component.literal("×"),
-                                    button -> {
-                                        PacketDistributor.sendToServer(
-                                                new EditorActionPayload(
-                                                        "REMOVE_OBJECTIVE",
-                                                        "",
-                                                        "",
-                                                        index,
-                                                        0,
-                                                        false
-                                                )
-                                        );
-                                    }
+                                    button ->
+                                            PacketDistributor.sendToServer(
+                                                    new EditorActionPayload(
+                                                            "REMOVE_OBJECTIVE",
+                                                            "",
+                                                            "",
+                                                            index,
+                                                            0,
+                                                            false
+                                                    )
+                                            )
                             )
                             .bounds(
-                                    x + 185,
-                                    objectiveY + i * 10,
+                                    x + 206,
+                                    objectiveY + i * 12 - 2,
                                     20,
-                                    10
+                                    11
                             )
                             .build()
             );
         }
 
         /*
-         * Crear papel.
+         * La publicación ya no se ejecuta al tocar el botón.
+         * Primero se abre una pantalla de confirmación.
          */
         addRenderableWidget(
                 Button.builder(
@@ -302,26 +319,20 @@ public final class RequestEditorScreen
                                 ),
                                 button -> {
                                     syncDuration();
-
-                                    PacketDistributor.sendToServer(
-                                            EditorActionPayload.simple(
-                                                    "CREATE_PAPER"
-                                            )
+                                    openConfirmation(
+                                            ConfirmAction.CREATE_PAPER
                                     );
                                 }
                         )
                         .bounds(
-                                x + 15,
-                                y + 208,
-                                92,
+                                x + 16,
+                                y + 256,
+                                100,
                                 18
                         )
                         .build()
         );
 
-        /*
-         * Publicar en todos los boards.
-         */
         addRenderableWidget(
                 Button.builder(
                                 Component.translatable(
@@ -329,84 +340,38 @@ public final class RequestEditorScreen
                                 ),
                                 button -> {
                                     syncDuration();
-
-                                    PacketDistributor.sendToServer(
-                                            EditorActionPayload.simple(
-                                                    "PUBLISH_BOARD"
-                                            )
+                                    openConfirmation(
+                                            ConfirmAction.PUBLISH_BOARD
                                     );
                                 }
                         )
                         .bounds(
-                                x + 112,
-                                y + 208,
-                                92,
+                                x + 125,
+                                y + 256,
+                                100,
                                 18
                         )
                         .build()
         );
 
-        if (state.admin()) {
-            usesBox =
-                    new EditBox(
-                            font,
-                            x + 212,
-                            y + 183,
-                            38,
-                            18,
-                            Component.translatable(
-                                    "bountifulrequests.gui.rotation_uses"
-                            )
-                    );
-
-            usesBox.setValue(
-                    Integer.toString(
-                            Math.max(
-                                    1,
-                                    state.rotationUses()
-                            )
-                    )
-            );
-
-            addRenderableWidget(
-                    usesBox
-            );
-
-            addRenderableWidget(
-                    Button.builder(
-                                    Component.translatable(
-                                            "bountifulrequests.gui.add_rotation"
-                                    ),
-                                    button -> {
-                                        syncDuration();
-
-                                        int uses =
-                                                parseInt(
-                                                        usesBox.getValue(),
-                                                        1
-                                                );
-
-                                        PacketDistributor.sendToServer(
-                                                new EditorActionPayload(
-                                                        "PUBLISH_ROTATION",
-                                                        "",
-                                                        "",
-                                                        Math.max(1, uses),
-                                                        0,
-                                                        false
-                                                )
-                                        );
-                                    }
-                            )
-                            .bounds(
-                                    x + 255,
-                                    y + 183,
-                                    68,
-                                    18
-                            )
-                            .build()
-            );
-        }
+        addRenderableWidget(
+                Button.builder(
+                                Component.translatable(
+                                        "bountifulrequests.gui.cancel_draft"
+                                ),
+                                button ->
+                                        openConfirmation(
+                                                ConfirmAction.CANCEL_DRAFT
+                                        )
+                        )
+                        .bounds(
+                                x + 234,
+                                y + 256,
+                                100,
+                                18
+                        )
+                        .build()
+        );
 
         addRenderableWidget(
                 Button.builder(
@@ -422,9 +387,9 @@ public final class RequestEditorScreen
                                         )
                         )
                         .bounds(
-                                x + 212,
-                                y + 112,
-                                111,
+                                x + 240,
+                                y + 116,
+                                94,
                                 18
                         )
                         .build()
@@ -444,34 +409,65 @@ public final class RequestEditorScreen
                                         )
                         )
                         .bounds(
-                                x + 212,
-                                y + 132,
-                                111,
+                                x + 240,
+                                y + 138,
+                                94,
                                 18
                         )
                         .build()
         );
 
-        addRenderableWidget(
-                Button.builder(
-                                Component.translatable(
-                                        "bountifulrequests.gui.cancel_draft"
-                                ),
-                                button ->
-                                        PacketDistributor.sendToServer(
-                                                EditorActionPayload.simple(
-                                                        "CANCEL_DRAFT"
-                                                )
-                                        )
-                        )
-                        .bounds(
-                                x + 212,
-                                y + 208,
-                                111,
-                                18
-                        )
-                        .build()
-        );
+        if (state.admin()) {
+            usesBox = new EditBox(
+                    font,
+                    x + 240,
+                    y + 176,
+                    94,
+                    18,
+                    Component.translatable(
+                            "bountifulrequests.gui.rotation_uses"
+                    )
+            );
+
+            usesBox.setValue(
+                    Integer.toString(
+                            Math.max(1, state.rotationUses())
+                    )
+            );
+
+            addRenderableWidget(usesBox);
+
+            addRenderableWidget(
+                    Button.builder(
+                                    Component.translatable(
+                                            "bountifulrequests.gui.add_rotation"
+                                    ),
+                                    button -> {
+                                        syncDuration();
+
+                                        confirmedRotationUses =
+                                                Math.max(
+                                                        1,
+                                                        parseInt(
+                                                                usesBox.getValue(),
+                                                                1
+                                                        )
+                                                );
+
+                                        openConfirmation(
+                                                ConfirmAction.PUBLISH_ROTATION
+                                        );
+                                    }
+                            )
+                            .bounds(
+                                    x + 240,
+                                    y + 199,
+                                    94,
+                                    18
+                            )
+                            .build()
+            );
+        }
     }
 
     private void syncDuration() {
@@ -515,19 +511,148 @@ public final class RequestEditorScreen
         return Component.translatable(
                         "bountifulrequests.gui.rarity",
                         Component.literal(
-                                niceName(
-                                        rarity.name()
-                                )
+                                niceName(rarity.name())
                         )
                 )
-                .withStyle(
-                        rarity.getColor()
-                );
+                .withStyle(rarity.getColor());
     }
 
-    // ------------------------------------------------------------
+    // ---------------------------------------------------------------------
+    // CONFIRMATION
+    // ---------------------------------------------------------------------
+
+    private void openConfirmation(ConfirmAction action) {
+        confirmAction = action;
+        mode = Mode.CONFIRMATION;
+        rebuildWidgets();
+    }
+
+    private void buildConfirmationWidgets() {
+        int x = leftPos;
+        int y = topPos;
+
+        addRenderableWidget(
+                Button.builder(
+                                Component.translatable(
+                                        "bountifulrequests.gui.confirm.confirm"
+                                ),
+                                button -> executeConfirmedAction()
+                        )
+                        .bounds(
+                                x + 76,
+                                y + 184,
+                                90,
+                                20
+                        )
+                        .build()
+        );
+
+        addRenderableWidget(
+                Button.builder(
+                                Component.translatable(
+                                        "bountifulrequests.gui.confirm.keep_editing"
+                                ),
+                                button -> {
+                                    confirmAction = null;
+                                    mode = Mode.MAIN;
+                                    rebuildWidgets();
+                                }
+                        )
+                        .bounds(
+                                x + 176,
+                                y + 184,
+                                110,
+                                20
+                        )
+                        .build()
+        );
+    }
+
+    private void executeConfirmedAction() {
+        if (confirmAction == null) {
+            mode = Mode.MAIN;
+            rebuildWidgets();
+            return;
+        }
+
+        switch (confirmAction) {
+            case CREATE_PAPER ->
+                    PacketDistributor.sendToServer(
+                            EditorActionPayload.simple(
+                                    "CREATE_PAPER"
+                            )
+                    );
+
+            case PUBLISH_BOARD ->
+                    PacketDistributor.sendToServer(
+                            EditorActionPayload.simple(
+                                    "PUBLISH_BOARD"
+                            )
+                    );
+
+            case PUBLISH_ROTATION ->
+                    PacketDistributor.sendToServer(
+                            new EditorActionPayload(
+                                    "PUBLISH_ROTATION",
+                                    "",
+                                    "",
+                                    confirmedRotationUses,
+                                    0,
+                                    false
+                            )
+                    );
+
+            case CANCEL_DRAFT ->
+                    PacketDistributor.sendToServer(
+                            EditorActionPayload.simple(
+                                    "CANCEL_DRAFT"
+                            )
+                    );
+        }
+
+        /*
+         * Para las publicaciones el servidor enviará un nuevo DraftSync.
+         * Para cancelar el borrador el contenedor se cierra desde servidor.
+         */
+        if (confirmAction != ConfirmAction.CANCEL_DRAFT) {
+            mode = Mode.MAIN;
+        }
+
+        confirmAction = null;
+    }
+
+    private Component confirmationMessage() {
+        if (confirmAction == null) {
+            return Component.empty();
+        }
+
+        return switch (confirmAction) {
+            case CREATE_PAPER ->
+                    Component.translatable(
+                            "bountifulrequests.gui.confirm.create_paper"
+                    );
+
+            case PUBLISH_BOARD ->
+                    Component.translatable(
+                            "bountifulrequests.gui.confirm.publish_now"
+                    );
+
+            case PUBLISH_ROTATION ->
+                    Component.translatable(
+                            "bountifulrequests.gui.confirm.rotation",
+                            confirmedRotationUses
+                    );
+
+            case CANCEL_DRAFT ->
+                    Component.translatable(
+                            "bountifulrequests.gui.confirm.cancel_draft"
+                    );
+        };
+    }
+
+    // ---------------------------------------------------------------------
     // TYPE SELECTOR
-    // ------------------------------------------------------------
+    // ---------------------------------------------------------------------
 
     private void buildTypeWidgets() {
         int x = leftPos;
@@ -545,7 +670,7 @@ public final class RequestEditorScreen
                         )
                         .bounds(
                                 x + 35,
-                                y + 55,
+                                y + 70,
                                 125,
                                 25
                         )
@@ -563,8 +688,8 @@ public final class RequestEditorScreen
                                         )
                         )
                         .bounds(
-                                x + 175,
-                                y + 55,
+                                x + 190,
+                                y + 70,
                                 125,
                                 25
                         )
@@ -583,7 +708,7 @@ public final class RequestEditorScreen
                         )
                         .bounds(
                                 x + 35,
-                                y + 90,
+                                y + 105,
                                 125,
                                 25
                         )
@@ -601,8 +726,8 @@ public final class RequestEditorScreen
                                         )
                         )
                         .bounds(
-                                x + 175,
-                                y + 90,
+                                x + 190,
+                                y + 105,
                                 125,
                                 25
                         )
@@ -612,14 +737,13 @@ public final class RequestEditorScreen
         addBackButton();
     }
 
-    // ------------------------------------------------------------
+    // ---------------------------------------------------------------------
     // BROWSER
-    // ------------------------------------------------------------
+    // ---------------------------------------------------------------------
 
     private void openBrowser(Mode newMode) {
         mode = newMode;
         browserOffset = 0;
-
         rebuildWidgets();
     }
 
@@ -627,17 +751,16 @@ public final class RequestEditorScreen
         int x = leftPos;
         int y = topPos;
 
-        searchBox =
-                new EditBox(
-                        font,
-                        x + 15,
-                        y + 25,
-                        210,
-                        18,
-                        Component.translatable(
-                                "bountifulrequests.gui.search"
-                        )
-                );
+        searchBox = new EditBox(
+                font,
+                x + 18,
+                y + 40,
+                220,
+                18,
+                Component.translatable(
+                        "bountifulrequests.gui.search"
+                )
+        );
 
         searchBox.setHint(
                 Component.translatable(
@@ -646,36 +769,29 @@ public final class RequestEditorScreen
         );
 
         searchBox.setResponder(
-                ignored ->
-                        browserOffset = 0
+                ignored -> browserOffset = 0
         );
 
-        addRenderableWidget(
-                searchBox
-        );
+        addRenderableWidget(searchBox);
 
-        amountBox =
-                new EditBox(
-                        font,
-                        x + 240,
-                        y + 25,
-                        55,
-                        18,
-                        Component.translatable(
-                                "bountifulrequests.gui.amount"
-                        )
-                );
+        amountBox = new EditBox(
+                font,
+                x + 250,
+                y + 40,
+                74,
+                18,
+                Component.translatable(
+                        "bountifulrequests.gui.amount"
+                )
+        );
 
         amountBox.setValue("1");
 
-        if (mode
-                == Mode.BOUNTIFUL_BROWSER) {
+        if (mode == Mode.BOUNTIFUL_BROWSER) {
             amountBox.setEditable(false);
         }
 
-        addRenderableWidget(
-                amountBox
-        );
+        addRenderableWidget(amountBox);
 
         addBackButton();
     }
@@ -692,18 +808,18 @@ public final class RequestEditorScreen
                                 }
                         )
                         .bounds(
-                                leftPos + 15,
-                                topPos + 202,
-                                75,
-                                18
+                                leftPos + 18,
+                                topPos + 246,
+                                80,
+                                20
                         )
                         .build()
         );
     }
 
-    // ------------------------------------------------------------
+    // ---------------------------------------------------------------------
     // RENDER
-    // ------------------------------------------------------------
+    // ---------------------------------------------------------------------
 
     @Override
     protected void renderBg(
@@ -715,48 +831,52 @@ public final class RequestEditorScreen
         int x = leftPos;
         int y = topPos;
 
+        // Fondo principal.
         graphics.fill(
                 x,
                 y,
                 x + imageWidth,
                 y + imageHeight,
-                0xEE181818
+                0xF0181818
         );
 
+        // Marco exterior.
+        drawBorder(
+                graphics,
+                x,
+                y,
+                imageWidth,
+                imageHeight,
+                0xFF4B4B4B
+        );
+
+        // Barra superior.
         graphics.fill(
-                x + 4,
-                y + 4,
-                x + imageWidth - 4,
-                y + 20,
+                x + 6,
+                y + 6,
+                x + imageWidth - 6,
+                y + 29,
                 0xFF303030
+        );
+
+        graphics.drawCenteredString(
+                font,
+                this.title,
+                x + imageWidth / 2,
+                y + 13,
+                0xFFFFFF
         );
 
         if (state == null) {
             return;
         }
 
-        boolean pending =
-                !"NONE".equals(
-                        state.pendingMode()
-                );
-
-        if (pending) {
-            renderPending(
+        switch (mode) {
+            case MAIN -> renderMain(
                     graphics,
                     x,
                     y
             );
-
-            return;
-        }
-
-        switch (mode) {
-            case MAIN ->
-                    renderMain(
-                            graphics,
-                            x,
-                            y
-                    );
 
             case TYPE_SELECTOR ->
                     graphics.drawCenteredString(
@@ -765,35 +885,50 @@ public final class RequestEditorScreen
                                     "bountifulrequests.gui.select_type"
                             ),
                             x + imageWidth / 2,
-                            y + 35,
+                            y + 47,
                             0xFFFFFF
                     );
 
-            case ITEM_BROWSER ->
-                    renderItems(
-                            graphics,
-                            x,
-                            y,
-                            mouseX,
-                            mouseY
-                    );
+            case ITEM_BROWSER -> {
+                renderBrowserHeader(graphics, x, y);
+                renderItems(
+                        graphics,
+                        x,
+                        y,
+                        mouseX,
+                        mouseY
+                );
+            }
 
-            case ENTITY_BROWSER ->
-                    renderEntities(
-                            graphics,
-                            x,
-                            y
-                    );
+            case ENTITY_BROWSER -> {
+                renderBrowserHeader(graphics, x, y);
+                renderEntities(
+                        graphics,
+                        x,
+                        y
+                );
+            }
 
-            case TAG_BROWSER ->
-                    renderTags(
-                            graphics,
-                            x,
-                            y
-                    );
+            case TAG_BROWSER -> {
+                renderBrowserHeader(graphics, x, y);
+                renderTags(
+                        graphics,
+                        x,
+                        y
+                );
+            }
 
-            case BOUNTIFUL_BROWSER ->
-                    renderBountifulEntries(
+            case BOUNTIFUL_BROWSER -> {
+                renderBrowserHeader(graphics, x, y);
+                renderBountifulEntries(
+                        graphics,
+                        x,
+                        y
+                );
+            }
+
+            case CONFIRMATION ->
+                    renderConfirmation(
                             graphics,
                             x,
                             y
@@ -806,13 +941,31 @@ public final class RequestEditorScreen
             int x,
             int y
     ) {
+        // Panel izquierdo: misión.
+        graphics.fill(
+                x + 10,
+                y + 32,
+                x + 232,
+                y + 166,
+                0x88242424
+        );
+
+        drawBorder(
+                graphics,
+                x + 10,
+                y + 32,
+                222,
+                134,
+                0xFF3D3D3D
+        );
+
         graphics.drawString(
                 font,
                 Component.translatable(
                         "bountifulrequests.gui.objectives"
                 ),
-                x + 15,
-                y + 44,
+                x + 16,
+                y + 61,
                 0xFFFFFF
         );
 
@@ -823,15 +976,35 @@ public final class RequestEditorScreen
              );
              i++) {
 
-            ObjectiveSpec objective =
-                    state.objectives().get(i);
+            Component text =
+                    objectiveText(
+                            state.objectives().get(i)
+                    );
+
+            String clipped =
+                    font.plainSubstrByWidth(
+                            text.getString(),
+                            180
+                    );
 
             graphics.drawString(
                     font,
-                    objectiveText(objective),
+                    clipped,
                     x + 18,
-                    y + 54 + i * 10,
+                    y + 73 + i * 12,
                     0xDDDDDD
+            );
+        }
+
+        if (state.objectives().size() > 3) {
+            graphics.drawString(
+                    font,
+                    Component.literal(
+                            "+" + (state.objectives().size() - 3)
+                    ),
+                    x + 185,
+                    y + 97,
+                    0xAAAAAA
             );
         }
 
@@ -840,56 +1013,46 @@ public final class RequestEditorScreen
                 Component.translatable(
                         "bountifulrequests.gui.duration_minutes"
                 ),
-                x + 15,
-                y + 103,
+                x + 16,
+                y + 134,
                 0xAAAAAA
         );
 
-        graphics.drawString(
+        // Panel derecho: recompensas.
+        graphics.fill(
+                x + 236,
+                y + 32,
+                x + 340,
+                y + 225,
+                0x88242424
+        );
+
+        drawBorder(
+                graphics,
+                x + 236,
+                y + 32,
+                104,
+                193,
+                0xFF3D3D3D
+        );
+
+        graphics.drawCenteredString(
                 font,
                 Component.translatable(
                         "bountifulrequests.gui.rewards"
                 ),
-                x + 232,
-                y + 38,
+                x + 287,
+                y + 39,
                 0xFFFFFF
         );
 
-        // Slot backgrounds.
-        for (int row = 0; row < 3; row++) {
-            for (int column = 0; column < 3; column++) {
-                int sx =
-                        x + 231 + column * 18;
-
-                int sy =
-                        y + 49 + row * 18;
-
-                graphics.fill(
-                        sx,
-                        sy,
-                        sx + 18,
-                        sy + 18,
-                        0xFF555555
-                );
-
-                graphics.fill(
-                        sx + 1,
-                        sy + 1,
-                        sx + 17,
-                        sy + 17,
-                        0xFF202020
-                );
-            }
-        }
-
-        graphics.drawString(
-                font,
-                Component.translatable(
-                        "container.inventory"
-                ),
-                x + 88,
-                y + 133,
-                0xAAAAAA
+        // 3x3 reward slots perfectamente centrados bajo "Recompensas".
+        drawSlotGrid(
+                graphics,
+                x + REWARD_X,
+                y + REWARD_Y,
+                3,
+                3
         );
 
         if (state.admin()) {
@@ -898,11 +1061,209 @@ public final class RequestEditorScreen
                     Component.translatable(
                             "bountifulrequests.gui.rotation_uses"
                     ),
-                    x + 212,
-                    y + 173,
+                    x + 240,
+                    y + 165,
                     0xAAAAAA
             );
         }
+
+        // Inventario.
+        graphics.drawCenteredString(
+                font,
+                Component.translatable(
+                        "container.inventory"
+                ),
+                x + INVENTORY_X + 81,
+                y + 166,
+                0xFFFFFF
+        );
+
+        drawSlotGrid(
+                graphics,
+                x + INVENTORY_X,
+                y + INVENTORY_Y,
+                9,
+                3
+        );
+
+        drawSlotGrid(
+                graphics,
+                x + INVENTORY_X,
+                y + HOTBAR_Y,
+                9,
+                1
+        );
+    }
+
+    private void renderBrowserHeader(
+            GuiGraphics graphics,
+            int x,
+            int y
+    ) {
+        Component browserTitle =
+                switch (mode) {
+                    case ITEM_BROWSER ->
+                            Component.translatable(
+                                    "bountifulrequests.gui.objective.item"
+                            );
+
+                    case ENTITY_BROWSER ->
+                            Component.translatable(
+                                    "bountifulrequests.gui.objective.entity"
+                            );
+
+                    case TAG_BROWSER ->
+                            Component.translatable(
+                                    "bountifulrequests.gui.objective.tag"
+                            );
+
+                    case BOUNTIFUL_BROWSER ->
+                            Component.translatable(
+                                    "bountifulrequests.gui.objective.bountiful"
+                            );
+
+                    default -> Component.empty();
+                };
+
+        graphics.drawCenteredString(
+                font,
+                browserTitle,
+                x + imageWidth / 2,
+                y + 64,
+                0xDDDDDD
+        );
+    }
+
+    private void renderConfirmation(
+            GuiGraphics graphics,
+            int x,
+            int y
+    ) {
+        // Caja central clara y separada del editor.
+        graphics.fill(
+                x + 42,
+                y + 70,
+                x + 308,
+                y + 218,
+                0xFF202020
+        );
+
+        drawBorder(
+                graphics,
+                x + 42,
+                y + 70,
+                266,
+                148,
+                0xFF777777
+        );
+
+        graphics.drawCenteredString(
+                font,
+                Component.translatable(
+                        "bountifulrequests.gui.confirm.title"
+                ),
+                x + imageWidth / 2,
+                y + 91,
+                0xFFFFFF
+        );
+
+        graphics.drawCenteredString(
+                font,
+                confirmationMessage(),
+                x + imageWidth / 2,
+                y + 124,
+                0xDDDDDD
+        );
+
+        graphics.drawCenteredString(
+                font,
+                Component.translatable(
+                        "bountifulrequests.gui.confirm.note"
+                ),
+                x + imageWidth / 2,
+                y + 146,
+                0xAAAAAA
+        );
+    }
+
+    private static void drawSlotGrid(
+            GuiGraphics graphics,
+            int startX,
+            int startY,
+            int columns,
+            int rows
+    ) {
+        for (int row = 0; row < rows; row++) {
+            for (int column = 0;
+                 column < columns;
+                 column++) {
+
+                int sx =
+                        startX + column * 18;
+
+                int sy =
+                        startY + row * 18;
+
+                // Borde claro del slot.
+                graphics.fill(
+                        sx - 1,
+                        sy - 1,
+                        sx + 17,
+                        sy + 17,
+                        0xFF5C5C5C
+                );
+
+                // Interior oscuro.
+                graphics.fill(
+                        sx,
+                        sy,
+                        sx + 16,
+                        sy + 16,
+                        0xFF202020
+                );
+            }
+        }
+    }
+
+    private static void drawBorder(
+            GuiGraphics graphics,
+            int x,
+            int y,
+            int width,
+            int height,
+            int color
+    ) {
+        graphics.fill(
+                x,
+                y,
+                x + width,
+                y + 1,
+                color
+        );
+
+        graphics.fill(
+                x,
+                y + height - 1,
+                x + width,
+                y + height,
+                color
+        );
+
+        graphics.fill(
+                x,
+                y,
+                x + 1,
+                y + height,
+                color
+        );
+
+        graphics.fill(
+                x + width - 1,
+                y,
+                x + width,
+                y + height,
+                color
+        );
     }
 
     private void renderItems(
@@ -929,17 +1290,14 @@ public final class RequestEditorScreen
                      && start + i < items.size();
              i++) {
 
-            int column =
-                    i % 9;
-
-            int row =
-                    i / 9;
+            int column = i % 9;
+            int row = i / 9;
 
             int sx =
                     x + 25 + column * 20;
 
             int sy =
-                    y + 55 + row * 20;
+                    y + 82 + row * 20;
 
             ItemStack stack =
                     new ItemStack(
@@ -951,7 +1309,15 @@ public final class RequestEditorScreen
                     sy - 1,
                     sx + 18,
                     sy + 18,
-                    0xFF383838
+                    0xFF444444
+            );
+
+            graphics.fill(
+                    sx,
+                    sy,
+                    sx + 17,
+                    sy + 17,
+                    0xFF242424
             );
 
             graphics.renderItem(
@@ -1059,13 +1425,13 @@ public final class RequestEditorScreen
              i++) {
 
             int sy =
-                    y + 54 + i * 13;
+                    y + 82 + i * 14;
 
             graphics.fill(
                     x + 18,
                     sy,
-                    x + 315,
-                    sy + 12,
+                    x + 332,
+                    sy + 13,
                     0xFF282828
             );
 
@@ -1079,67 +1445,9 @@ public final class RequestEditorScreen
         }
     }
 
-    private void renderPending(
-            GuiGraphics graphics,
-            int x,
-            int y
-    ) {
-        long seconds =
-                Math.max(
-                        0,
-                        (state.pendingRemainingTicks() + 19)
-                                / 20
-                );
-
-        graphics.drawCenteredString(
-                font,
-                Component.translatable(
-                        "bountifulrequests.gui.pending"
-                ),
-                x + imageWidth / 2,
-                y + 80,
-                0xFFD56A
-        );
-
-        graphics.drawCenteredString(
-                font,
-                Long.toString(seconds),
-                x + imageWidth / 2,
-                y + 104,
-                0xFFFFFF
-        );
-    }
-
-    // ------------------------------------------------------------
-    // PENDING BUTTON
-    // ------------------------------------------------------------
-
-    private void buildPendingWidgets() {
-        addRenderableWidget(
-                Button.builder(
-                                Component.translatable(
-                                        "bountifulrequests.gui.undo"
-                                ),
-                                button ->
-                                        PacketDistributor.sendToServer(
-                                                EditorActionPayload.simple(
-                                                        "UNDO"
-                                                )
-                                        )
-                        )
-                        .bounds(
-                                leftPos + 104,
-                                topPos + 130,
-                                130,
-                                22
-                        )
-                        .build()
-        );
-    }
-
-    // ------------------------------------------------------------
+    // ---------------------------------------------------------------------
     // CLICK BROWSER
-    // ------------------------------------------------------------
+    // ---------------------------------------------------------------------
 
     @Override
     public boolean mouseClicked(
@@ -1147,30 +1455,24 @@ public final class RequestEditorScreen
             double mouseY,
             int button
     ) {
-        if (button == 0
-                && state != null) {
-
+        if (button == 0 && state != null) {
             if (mode == Mode.ITEM_BROWSER
                     && clickItem(mouseX, mouseY)) {
-
                 return true;
             }
 
             if (mode == Mode.ENTITY_BROWSER
                     && clickEntity(mouseX, mouseY)) {
-
                 return true;
             }
 
             if (mode == Mode.TAG_BROWSER
                     && clickTag(mouseX, mouseY)) {
-
                 return true;
             }
 
             if (mode == Mode.BOUNTIFUL_BROWSER
                     && clickBountiful(mouseX, mouseY)) {
-
                 return true;
             }
         }
@@ -1194,21 +1496,16 @@ public final class RequestEditorScreen
         int localY =
                 (int) mouseY
                         - topPos
-                        - 55;
+                        - 82;
 
-        if (localX < 0
-                || localY < 0) {
+        if (localX < 0 || localY < 0) {
             return false;
         }
 
-        int column =
-                localX / 20;
+        int column = localX / 20;
+        int row = localY / 20;
 
-        int row =
-                localY / 20;
-
-        if (column >= 9
-                || row >= 5) {
+        if (column >= 9 || row >= 5) {
             return false;
         }
 
@@ -1220,8 +1517,7 @@ public final class RequestEditorScreen
         List<Item> items =
                 filteredItems();
 
-        if (index < 0
-                || index >= items.size()) {
+        if (index < 0 || index >= items.size()) {
             return false;
         }
 
@@ -1264,8 +1560,7 @@ public final class RequestEditorScreen
 
         sendObjective(
                 ObjectiveSpec.Kind.ENTITY,
-                entities.get(index)
-                        .toString()
+                entities.get(index).toString()
         );
 
         return true;
@@ -1297,8 +1592,7 @@ public final class RequestEditorScreen
 
         sendObjective(
                 ObjectiveSpec.Kind.ITEM_TAG,
-                tags.get(index)
-                        .toString()
+                tags.get(index).toString()
         );
 
         return true;
@@ -1330,8 +1624,7 @@ public final class RequestEditorScreen
 
         sendObjective(
                 ObjectiveSpec.Kind.BOUNTIFUL_ENTRY,
-                entries.get(index)
-                        .getId()
+                entries.get(index).getId()
         );
 
         return true;
@@ -1348,13 +1641,14 @@ public final class RequestEditorScreen
                 (int) mouseY - topPos;
 
         if (x < 18
-                || x > 315
-                || y < 54
-                || y >= 184) {
+                || x > 332
+                || y < 82
+                || y >= 222) {
+
             return -1;
         }
 
-        return (y - 54) / 13;
+        return (y - 82) / 14;
     }
 
     private void sendObjective(
@@ -1386,9 +1680,44 @@ public final class RequestEditorScreen
         mode = Mode.MAIN;
     }
 
-    // ------------------------------------------------------------
+    // ---------------------------------------------------------------------
+    // KEYBOARD
+    // ---------------------------------------------------------------------
+
+    /**
+     * AbstractContainerScreen normalmente usa la tecla de inventario (E)
+     * para cerrar el contenedor.
+     *
+     * Cuando un EditBox tiene foco, la misma tecla debe poder escribirse en
+     * el título o buscador sin cerrar la pantalla.
+     */
+    @Override
+    public boolean keyPressed(
+            int keyCode,
+            int scanCode,
+            int modifiers
+    ) {
+        if (getFocused() instanceof EditBox editBox
+                && editBox.isFocused()
+                && minecraft != null
+                && minecraft.options.keyInventory.matches(
+                        keyCode,
+                        scanCode
+                )) {
+
+            return true;
+        }
+
+        return super.keyPressed(
+                keyCode,
+                scanCode,
+                modifiers
+        );
+    }
+
+    // ---------------------------------------------------------------------
     // SCROLL
-    // ------------------------------------------------------------
+    // ---------------------------------------------------------------------
 
     @Override
     public boolean mouseScrolled(
@@ -1397,14 +1726,17 @@ public final class RequestEditorScreen
             double scrollX,
             double scrollY
     ) {
-        if (mode != Mode.MAIN
-                && mode != Mode.TYPE_SELECTOR) {
+        if (mode == Mode.ITEM_BROWSER
+                || mode == Mode.ENTITY_BROWSER
+                || mode == Mode.TAG_BROWSER
+                || mode == Mode.BOUNTIFUL_BROWSER) {
 
             if (scrollY < 0) {
                 browserOffset +=
                         mode == Mode.ITEM_BROWSER
                                 ? 9
                                 : 1;
+
             } else if (scrollY > 0) {
                 browserOffset -=
                         mode == Mode.ITEM_BROWSER
@@ -1429,9 +1761,9 @@ public final class RequestEditorScreen
         );
     }
 
-    // ------------------------------------------------------------
+    // ---------------------------------------------------------------------
     // FILTERS
-    // ------------------------------------------------------------
+    // ---------------------------------------------------------------------
 
     private String query() {
         if (searchBox == null) {
@@ -1440,9 +1772,7 @@ public final class RequestEditorScreen
 
         return searchBox
                 .getValue()
-                .toLowerCase(
-                        Locale.ROOT
-                )
+                .toLowerCase(Locale.ROOT)
                 .trim();
     }
 
@@ -1451,9 +1781,7 @@ public final class RequestEditorScreen
 
         return BuiltInRegistries.ITEM
                 .stream()
-                .filter(item ->
-                        item != Items.AIR
-                )
+                .filter(item -> item != Items.AIR)
                 .filter(item -> {
                     ResourceLocation id =
                             BuiltInRegistries.ITEM
@@ -1462,15 +1790,11 @@ public final class RequestEditorScreen
                     String name =
                             item.getDescription()
                                     .getString()
-                                    .toLowerCase(
-                                            Locale.ROOT
-                                    );
+                                    .toLowerCase(Locale.ROOT);
 
                     String key =
                             id.toString()
-                                    .toLowerCase(
-                                            Locale.ROOT
-                                    );
+                                    .toLowerCase(Locale.ROOT);
 
                     return query.isBlank()
                             || name.contains(query)
@@ -1503,16 +1827,12 @@ public final class RequestEditorScreen
                     String name =
                             entity.getDescription()
                                     .getString()
-                                    .toLowerCase(
-                                            Locale.ROOT
-                                    );
+                                    .toLowerCase(Locale.ROOT);
 
                     return query.isBlank()
                             || name.contains(query)
                             || id.toString()
-                            .toLowerCase(
-                                    Locale.ROOT
-                            )
+                            .toLowerCase(Locale.ROOT)
                             .contains(query)
                             || id.getNamespace()
                             .contains(query);
@@ -1533,9 +1853,7 @@ public final class RequestEditorScreen
                 .filter(id ->
                         query.isBlank()
                                 || id.toString()
-                                .toLowerCase(
-                                        Locale.ROOT
-                                )
+                                .toLowerCase(Locale.ROOT)
                                 .contains(query)
                 )
                 .sorted()
@@ -1556,14 +1874,10 @@ public final class RequestEditorScreen
                 .filter(entry ->
                         query.isBlank()
                                 || entry.getId()
-                                .toLowerCase(
-                                        Locale.ROOT
-                                )
+                                .toLowerCase(Locale.ROOT)
                                 .contains(query)
                                 || entry.getContent()
-                                .toLowerCase(
-                                        Locale.ROOT
-                                )
+                                .toLowerCase(Locale.ROOT)
                                 .contains(query)
                 )
                 .sorted(
@@ -1574,32 +1888,75 @@ public final class RequestEditorScreen
                 .toList();
     }
 
-    // ------------------------------------------------------------
+    // ---------------------------------------------------------------------
     // HELPERS
-    // ------------------------------------------------------------
+    // ---------------------------------------------------------------------
 
     private Component objectiveText(
             ObjectiveSpec objective
     ) {
-        String prefix =
-                switch (objective.kind) {
-                    case ITEM -> "📦 ";
-                    case ITEM_TAG -> "# ";
-                    case ENTITY -> "☠ ";
-                    case BOUNTIFUL_ENTRY,
-                         BOUNTIFUL_RESOLVED -> "◆ ";
-                };
+        try {
+            return switch (objective.kind) {
+                case ITEM -> {
+                    ResourceLocation id =
+                            ResourceLocation.parse(
+                                    objective.content
+                            );
 
-        return Component.literal(
-                prefix
-                        + objective.content
-                        + (
-                        objective.kind
-                                == ObjectiveSpec.Kind.BOUNTIFUL_ENTRY
-                                ? ""
-                                : " x" + objective.amount
-                )
-        );
+                    Item item =
+                            BuiltInRegistries.ITEM.get(id);
+
+                    yield item.getDescription()
+                            .copy()
+                            .append(
+                                    " x" + objective.amount
+                            );
+                }
+
+                case ENTITY -> {
+                    ResourceLocation id =
+                            ResourceLocation.parse(
+                                    objective.content
+                            );
+
+                    EntityType<?> type =
+                            BuiltInRegistries.ENTITY_TYPE
+                                    .get(id);
+
+                    yield type.getDescription()
+                            .copy()
+                            .append(
+                                    " x" + objective.amount
+                            );
+                }
+
+                case ITEM_TAG ->
+                        Component.literal(
+                                "#" + objective.content
+                                        + " x"
+                                        + objective.amount
+                        );
+
+                case BOUNTIFUL_ENTRY,
+                     BOUNTIFUL_RESOLVED ->
+                        Component.literal(
+                                objective.content
+                                        + (
+                                        objective.kind
+                                                == ObjectiveSpec.Kind.BOUNTIFUL_ENTRY
+                                                ? ""
+                                                : " x" + objective.amount
+                                )
+                        );
+            };
+
+        } catch (Exception ignored) {
+            return Component.literal(
+                    objective.content
+                            + " x"
+                            + objective.amount
+            );
+        }
     }
 
     private static int parseInt(
@@ -1607,9 +1964,7 @@ public final class RequestEditorScreen
             int fallback
     ) {
         try {
-            return Integer.parseInt(
-                    value
-            );
+            return Integer.parseInt(value);
         } catch (Exception ignored) {
             return fallback;
         }
@@ -1620,21 +1975,15 @@ public final class RequestEditorScreen
             long fallback
     ) {
         try {
-            return Long.parseLong(
-                    value
-            );
+            return Long.parseLong(value);
         } catch (Exception ignored) {
             return fallback;
         }
     }
 
-    private static String niceName(
-            String input
-    ) {
+    private static String niceName(String input) {
         String lower =
-                input.toLowerCase(
-                        Locale.ROOT
-                );
+                input.toLowerCase(Locale.ROOT);
 
         return Character.toUpperCase(
                 lower.charAt(0)
