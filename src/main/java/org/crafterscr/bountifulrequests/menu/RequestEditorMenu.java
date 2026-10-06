@@ -71,10 +71,10 @@ public final class RequestEditorMenu
                         column + row * 3;
 
                 int x =
-                        232 + column * 18;
+                        260 + column * 18;
 
                 int y =
-                        50 + row * 18;
+                        55 + row * 18;
 
                 addSlot(
                         new Slot(
@@ -105,8 +105,8 @@ public final class RequestEditorMenu
         // Player inventory
         // --------------------------------------------------------
 
-        int inventoryX = 88;
-        int inventoryY = 144;
+        int inventoryX = 40;
+        int inventoryY = 178;
 
         for (int row = 0; row < 3; row++) {
             for (int column = 0; column < 9; column++) {
