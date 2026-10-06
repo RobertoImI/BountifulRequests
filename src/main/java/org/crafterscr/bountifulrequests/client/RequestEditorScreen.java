@@ -539,9 +539,9 @@ public final class RequestEditorScreen
                                 button -> executeConfirmedAction()
                         )
                         .bounds(
-                                x + 76,
-                                y + 184,
-                                90,
+                                x + 20,
+                                y + 132,
+                                96,
                                 20
                         )
                         .build()
@@ -559,9 +559,9 @@ public final class RequestEditorScreen
                                 }
                         )
                         .bounds(
-                                x + 176,
-                                y + 184,
-                                110,
+                                x + 126,
+                                y + 132,
+                                100,
                                 20
                         )
                         .build()
@@ -1141,19 +1141,19 @@ public final class RequestEditorScreen
     ) {
         // Caja central clara y separada del editor.
         graphics.fill(
-                x + 42,
-                y + 70,
-                x + 308,
-                y + 218,
+                x + 12,
+                y + 60,
+                x + 234,
+                y + 160,
                 0xFF202020
         );
 
         drawBorder(
                 graphics,
-                x + 42,
-                y + 70,
-                266,
-                148,
+                x + 12,
+                y + 60,
+                222,
+                100,
                 0xFF777777
         );
 
@@ -1162,16 +1162,16 @@ public final class RequestEditorScreen
                 Component.translatable(
                         "bountifulrequests.gui.confirm.title"
                 ),
-                x + imageWidth / 2,
-                y + 91,
+                x + 123,
+                y + 76,
                 0xFFFFFF
         );
 
         graphics.drawCenteredString(
                 font,
                 confirmationMessage(),
-                x + imageWidth / 2,
-                y + 124,
+                x + 123,
+                y + 98,
                 0xDDDDDD
         );
 
@@ -1180,8 +1180,8 @@ public final class RequestEditorScreen
                 Component.translatable(
                         "bountifulrequests.gui.confirm.note"
                 ),
-                x + imageWidth / 2,
-                y + 146,
+                x + 123,
+                y + 114,
                 0xAAAAAA
         );
     }
