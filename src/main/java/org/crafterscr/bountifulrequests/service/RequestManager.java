@@ -29,9 +29,6 @@ import net.minecraft.world.item.ItemStack;
  */
 public final class RequestManager {
 
-    public static final int CANCEL_WINDOW_TICKS =
-            20 * 10;
-
     private RequestManager() {
     }
 
@@ -299,21 +296,23 @@ public final class RequestManager {
                     rotationUses;
         }
 
+        /*
+         * La confirmación se hace en el GUI ANTES de enviar esta acción.
+         * Una vez que el servidor recibe la confirmación, publica de inmediato.
+         *
+         * Conservamos pendingMode únicamente como estado transitorio interno
+         * porque finalizePending() ya utiliza ese valor para decidir si será
+         * HANDOUT, BOARD o ROTATION.
+         */
         draft.pendingMode = mode;
-
-        draft.pendingUntilTick =
-                player.server
-                        .overworld()
-                        .getGameTime()
-                        + CANCEL_WINDOW_TICKS;
+        draft.pendingUntilTick = -1L;
 
         data.setDirty();
 
-        player.sendSystemMessage(
-                Component.translatable(
-                        "bountifulrequests.message.pending",
-                        10
-                )
+        finalizePending(
+                player.server,
+                data,
+                draft
         );
 
         return true;
@@ -429,7 +428,10 @@ public final class RequestManager {
         boolean changed = false;
 
         /*
-         * Finalizamos publicaciones después de los 10 segundos.
+         * Compatibilidad con mundos guardados por versiones anteriores:
+         * si quedó una publicación pendiente del antiguo temporizador,
+         * la finalizamos inmediatamente. Las nuevas publicaciones ya no
+         * utilizan cuenta regresiva.
          */
         for (RequestDraft draft
                 : new ArrayList<>(
@@ -437,10 +439,6 @@ public final class RequestManager {
         )) {
 
             if (!draft.isPending()) {
-                continue;
-            }
-
-            if (now < draft.pendingUntilTick) {
                 continue;
             }
 
