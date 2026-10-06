@@ -16,7 +16,6 @@ import net.neoforged.bus.api.EventPriority;
 import net.neoforged.bus.api.SubscribeEvent;
 import net.neoforged.fml.common.EventBusSubscriber;
 import net.neoforged.neoforge.event.RegisterCommandsEvent;
-import net.neoforged.neoforge.event.entity.player.PlayerEvent;
 import net.neoforged.neoforge.event.entity.player.PlayerInteractEvent;
 import net.neoforged.neoforge.event.tick.ServerTickEvent;
 
@@ -121,21 +120,4 @@ public final class RequestEvents {
         );
     }
 
-    /**
-     * Si pierde conexión durante la cuenta regresiva,
-     * anulamos la publicación para evitar accidentes.
-     */
-    @SubscribeEvent
-    public static void logout(
-            PlayerEvent.PlayerLoggedOutEvent event
-    ) {
-        if (!(event.getEntity()
-                instanceof ServerPlayer player)) {
-            return;
-        }
-
-        RequestManager.undoPending(
-                player
-        );
-    }
 }
