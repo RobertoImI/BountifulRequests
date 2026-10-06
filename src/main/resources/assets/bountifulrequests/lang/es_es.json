@@ -1,0 +1,53 @@
+{
+  "bountifulrequests.gui.title": "Editor de Encargos Bountiful",
+  "bountifulrequests.gui.title_field": "Título del encargo",
+  "bountifulrequests.gui.objectives": "Objetivos",
+  "bountifulrequests.gui.rewards": "Recompensas",
+  "bountifulrequests.gui.add_objective": "+ Agregar objetivo",
+  "bountifulrequests.gui.duration": "Duración",
+  "bountifulrequests.gui.duration_minutes": "Duración (minutos)",
+  "bountifulrequests.gui.rarity": "Rareza: %s",
+
+  "bountifulrequests.gui.create_paper": "Crear papel",
+  "bountifulrequests.gui.publish_now": "Publicar ahora",
+  "bountifulrequests.gui.add_rotation": "Agregar a rotación",
+  "bountifulrequests.gui.rotation_uses": "Usos",
+
+  "bountifulrequests.gui.cancel_draft": "Cancelar borrador",
+  "bountifulrequests.gui.undo": "Anular publicación",
+  "bountifulrequests.gui.pending": "Publicación pendiente...",
+
+  "bountifulrequests.gui.collect_deliveries": "Entregas (%s)",
+  "bountifulrequests.gui.collect_returns": "Devoluciones (%s)",
+
+  "bountifulrequests.gui.select_type": "Selecciona el tipo de objetivo",
+  "bountifulrequests.gui.objective.item": "Objeto",
+  "bountifulrequests.gui.objective.entity": "Eliminar entidad",
+  "bountifulrequests.gui.objective.tag": "Etiqueta de objetos",
+  "bountifulrequests.gui.objective.bountiful": "Entrada de Bountiful",
+
+  "bountifulrequests.gui.search": "Buscar...",
+  "bountifulrequests.gui.amount": "Cantidad",
+  "bountifulrequests.gui.back": "Volver",
+
+  "bountifulrequests.message.missing_title": "El encargo necesita un título.",
+  "bountifulrequests.message.missing_objective": "El encargo necesita al menos un objetivo.",
+  "bountifulrequests.message.missing_reward": "Debes depositar al menos un objeto como recompensa.",
+  "bountifulrequests.message.admin_only": "Sólo los administradores pueden crear rotaciones.",
+  "bountifulrequests.message.too_many_objectives": "Un encargo puede tener un máximo de 8 objetivos.",
+
+  "bountifulrequests.message.not_enough_rotation_rewards": "No tienes suficientes objetos iguales para financiar todas las recompensas de la rotación.",
+  "bountifulrequests.message.pending": "La publicación se activará en %s segundos.",
+  "bountifulrequests.message.publication_cancelled": "Publicación anulada. Puedes continuar editando.",
+  "bountifulrequests.message.published": "Encargo publicado correctamente.",
+
+  "bountifulrequests.message.invalid_request": "Este encargo ya no existe.",
+  "bountifulrequests.message.expired": "Este encargo ha expirado.",
+  "bountifulrequests.message.not_claimed": "Este encargo no está reservado para ti.",
+  "bountifulrequests.message.request_completed": "Tu encargo '%s' fue completado por %s.",
+
+  "bountifulrequests.command.list_header": "Encargos de Bountiful:",
+  "bountifulrequests.command.not_found": "No se encontró el encargo.",
+  "bountifulrequests.command.invalid_id": "ID de encargo inválido.",
+  "bountifulrequests.command.removed": "Encargo eliminado."
+}

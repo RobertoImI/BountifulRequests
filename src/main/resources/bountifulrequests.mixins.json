@@ -1,0 +1,15 @@
+{
+  "required": true,
+  "minVersion": "0.8",
+  "package": "org.crafterscr.bountifulrequests.mixin",
+  "compatibilityLevel": "JAVA_21",
+  "mixins": [
+    "BoardBlockEntityAccessor",
+    "BoardBlockEntityMixin",
+    "BoardBountySlotMixin",
+    "BountyStackMixin"
+  ],
+  "injectors": {
+    "defaultRequire": 1
+  }
+}
