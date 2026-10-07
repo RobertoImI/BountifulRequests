@@ -355,69 +355,25 @@ public final class RequestManager {
         }
 
         if (mode
-                == RequestDraft.PendingMode.ROTATION) {
+                == RequestDraft.PendingMode.ROTATION
+                && !player.hasPermissions(2)) {
 
-            if (!player.hasPermissions(2)) {
-                player.sendSystemMessage(
-                        Component.translatable(
-                                "bountifulrequests.message.admin_only"
-                        )
-                );
-
-                return false;
-            }
-
-            rotationUses =
-                    Math.max(1, rotationUses);
-
-            List<List<ItemStack>> consumed =
-                    new ArrayList<>();
-
-            /*
-             * El primer bundle ya está físicamente dentro del editor.
-             *
-             * Si uses = 10, retiramos otros 9 bundles REALES
-             * del inventario.
-             */
-            for (int i = 1; i < rotationUses; i++) {
-                List<ItemStack> extra =
-                        InventoryUtil.takeExactBundle(
-                                player,
-                                firstBundle
-                        );
-
-                if (extra == null) {
-                    /*
-                     * Rollback de todos los bundles extra que ya habíamos
-                     * retirado.
-                     */
-                    for (List<ItemStack> bundle : consumed) {
-                        InventoryUtil.giveOrQueue(
-                                player,
-                                bundle,
-                                data
-                        );
-                    }
-
-                    player.sendSystemMessage(
-                            Component.translatable(
-                                    "bountifulrequests.message.not_enough_rotation_rewards"
-                            )
-                    );
-
-                    return false;
-                }
-
-                consumed.add(extra);
-            }
-
-            draft.pendingExtraBundles.addAll(
-                    consumed
+            player.sendSystemMessage(
+                    Component.translatable(
+                            "bountifulrequests.message.admin_only"
+                    )
             );
 
-            draft.rotationUses =
-                    rotationUses;
+            return false;
         }
+
+        /*
+         * ROTATION ya no usa "usos" ni retira múltiples recompensas.
+         *
+         * El bundle depositado por el OP se toma como PLANTILLA exacta de
+         * recompensa y se devuelve al administrador al terminar de crearla.
+         * Cada completion futura recibe una copia server-side de esa plantilla.
+         */
 
         /*
          * La confirmación se hace en el GUI ANTES de enviar esta acción.
@@ -638,22 +594,6 @@ public final class RequestManager {
                 }
             }
 
-            /*
-             * Rotación completamente agotada.
-             */
-            if (publication.kind
-                    == RequestPublication.Kind.ROTATION
-                    && publication.state
-                    == RequestPublication.State.OPEN
-                    && publication.availableBundles.isEmpty()
-                    && publication.activeClaims.isEmpty()) {
-
-                publication.state =
-                        RequestPublication.State.COMPLETED;
-
-                changed = true;
-            }
-
             if (publication.state
                     == RequestPublication.State.CLOSING
                     && publication.activeClaims.isEmpty()) {
@@ -664,6 +604,10 @@ public final class RequestManager {
                 changed = true;
             }
         }
+
+        RotationManager.tick(
+                server
+        );
 
         if (changed) {
             data.setDirty();
@@ -680,6 +624,9 @@ public final class RequestManager {
 
         publication.id =
                 UUID.randomUUID();
+
+        publication.shortId =
+                data.allocateShortId();
 
         publication.owner =
                 draft.owner;
@@ -751,15 +698,20 @@ public final class RequestManager {
                         draft.rewards
                 );
 
-        publication.availableBundles.add(
-                primary
-        );
+        if (publication.kind
+                == RequestPublication.Kind.ROTATION) {
 
-        for (List<ItemStack> extra
-                : draft.pendingExtraBundles) {
+            publication.rotationRewardTemplate.addAll(
+                    primary.stream()
+                            .map(ItemStack::copy)
+                            .toList()
+            );
 
+            publication.rotationActive = false;
+
+        } else {
             publication.availableBundles.add(
-                    InventoryUtil.copyBundle(extra)
+                    primary
             );
         }
 
@@ -771,7 +723,30 @@ public final class RequestManager {
         RequestPublication.Kind finalKind =
                 publication.kind;
 
+        /*
+         * La recompensa usada para definir una ROTATION es una muestra de
+         * administración, no escrow finito. La plantilla ya quedó copiada.
+         */
+        if (finalKind
+                == RequestPublication.Kind.ROTATION
+                && owner != null) {
+
+            InventoryUtil.giveOrQueue(
+                    owner,
+                    primary,
+                    data
+            );
+        }
+
         draft.resetAfterPublish();
+
+        if (finalKind
+                == RequestPublication.Kind.ROTATION) {
+
+            RotationManager.onRotationCreated(
+                    server
+            );
+        }
 
         /*
          * Actualizamos cualquier editor abierto.
@@ -907,7 +882,17 @@ public final class RequestManager {
             return false;
         }
 
-        if (publication.availableBundles.isEmpty()) {
+        if (publication.kind
+                != RequestPublication.Kind.ROTATION
+                && publication.availableBundles.isEmpty()) {
+
+            return false;
+        }
+
+        if (publication.kind
+                == RequestPublication.Kind.ROTATION
+                && publication.rotationRewardTemplate.isEmpty()) {
+
             return false;
         }
 
@@ -925,7 +910,13 @@ public final class RequestManager {
         }
 
         List<ItemStack> reserved =
-                publication.availableBundles
+                publication.kind
+                        == RequestPublication.Kind.ROTATION
+                        ? publication.rotationRewardTemplate
+                        .stream()
+                        .map(ItemStack::copy)
+                        .toList()
+                        : publication.availableBundles
                         .remove(0);
 
         ActiveClaim claim =
@@ -1416,16 +1407,8 @@ public final class RequestManager {
         );
 
         if (publication.kind
-                == RequestPublication.Kind.ROTATION) {
+                != RequestPublication.Kind.ROTATION) {
 
-            if (publication.availableBundles.isEmpty()
-                    && publication.activeClaims.isEmpty()) {
-
-                publication.state =
-                        RequestPublication.State.COMPLETED;
-            }
-
-        } else {
             publication.state =
                     RequestPublication.State.COMPLETED;
         }
@@ -1462,37 +1445,27 @@ public final class RequestManager {
             ActiveClaim claim
     ) {
         if (publication.kind
-                == RequestPublication.Kind.ROTATION
-                && publication.state
-                != RequestPublication.State.CLOSING) {
+                == RequestPublication.Kind.ROTATION) {
 
             /*
-             * COPIA de rotación expirada:
-             * vuelve a la reserva de la rotación.
+             * La recompensa de una rotación es virtual/admin y se generó
+             * desde su plantilla. Si el claim expira simplemente se descarta;
+             * la plantilla permanente permanece intacta.
              */
-            publication.availableBundles.add(
-                    InventoryUtil.copyBundle(
-                            claim.rewardBundle
-                    )
-            );
-
-        } else {
-            /*
-             * Misión normal expirada o rotación cerrada:
-             * vuelve al creador.
-             */
-            data.addReturn(
-                    publication.owner,
-                    claim.rewardBundle
-            );
+            return;
         }
 
-        if (publication.kind
-                != RequestPublication.Kind.ROTATION) {
+        /*
+         * Misión normal expirada:
+         * el escrow vuelve al creador.
+         */
+        data.addReturn(
+                publication.owner,
+                claim.rewardBundle
+        );
 
-            publication.state =
-                    RequestPublication.State.EXPIRED;
-        }
+        publication.state =
+                RequestPublication.State.EXPIRED;
     }
 
     // ------------------------------------------------------------
