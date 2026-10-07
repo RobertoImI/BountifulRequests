@@ -726,16 +726,40 @@ public final class RequestManager {
         /*
          * La recompensa usada para definir una ROTATION es una muestra de
          * administración, no escrow finito. La plantilla ya quedó copiada.
+         *
+         * También recuperamos cualquier PendingExtraBundle legacy que pudiera
+         * existir en un borrador creado con el sistema antiguo de "usos".
          */
         if (finalKind
-                == RequestPublication.Kind.ROTATION
-                && owner != null) {
+                == RequestPublication.Kind.ROTATION) {
 
-            InventoryUtil.giveOrQueue(
-                    owner,
-                    primary,
-                    data
-            );
+            List<ItemStack> adminSamples =
+                    new ArrayList<>(
+                            primary
+                    );
+
+            for (List<ItemStack> legacyBundle
+                    : draft.pendingExtraBundles) {
+
+                adminSamples.addAll(
+                        legacyBundle.stream()
+                                .map(ItemStack::copy)
+                                .toList()
+                );
+            }
+
+            if (owner != null) {
+                InventoryUtil.giveOrQueue(
+                        owner,
+                        adminSamples,
+                        data
+                );
+            } else {
+                data.addReturn(
+                        publication.owner,
+                        adminSamples
+                );
+            }
         }
 
         draft.resetAfterPublish();
