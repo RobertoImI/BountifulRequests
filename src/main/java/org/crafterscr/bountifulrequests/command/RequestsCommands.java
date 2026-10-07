@@ -7,8 +7,10 @@ import org.crafterscr.bountifulrequests.data.RequestPublication;
 import org.crafterscr.bountifulrequests.data.RequestSavedData;
 import org.crafterscr.bountifulrequests.menu.RequestEditorOpener;
 import org.crafterscr.bountifulrequests.service.RequestManager;
+import org.crafterscr.bountifulrequests.service.RotationManager;
 
 import com.mojang.brigadier.CommandDispatcher;
+import com.mojang.brigadier.arguments.IntegerArgumentType;
 import com.mojang.brigadier.arguments.StringArgumentType;
 import com.mojang.brigadier.tree.CommandNode;
 
@@ -19,21 +21,13 @@ import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerPlayer;
 
 /**
- * Comandos:
+ * Administración de Bountiful Requests.
  *
- * /bo requests editor
- * /bo requests list
- * /bo requests remove <id>
- * /bo requests defaults
- * /bo requests defaults on
- * /bo requests defaults off
- * /bo requests defaults status
- * /bo requests collect deliveries
- * /bo requests collect returns
+ * IDs visibles:
+ * - usamos un número corto (#1, #2, #3...) para operación diaria;
+ * - el UUID interno se conserva y todavía se acepta como fallback.
  *
- * IMPORTANTE:
- * Bountiful protege /bo con OP 2.
- * Nuestros hijos mantienen esa seguridad.
+ * Bountiful protege /bo con OP 2, así que estos hijos heredan esa seguridad.
  */
 public final class RequestsCommands {
 
@@ -75,44 +69,12 @@ public final class RequestsCommands {
 
                         .then(
                                 Commands.literal("list")
-                                        .executes(context -> {
-                                            RequestSavedData data =
-                                                    RequestSavedData.get(
-                                                            context.getSource()
-                                                                    .getServer()
-                                                    );
-
-                                            context.getSource()
-                                                    .sendSuccess(
-                                                            () ->
-                                                                    Component.translatable(
-                                                                            "bountifulrequests.command.list_header"
-                                                                    ),
-                                                            false
-                                                    );
-
-                                            for (RequestPublication publication
-                                                    : data.publications.values()) {
-
-                                                context.getSource()
-                                                        .sendSuccess(
-                                                                () ->
-                                                                        Component.literal(
-                                                                                publication.id
-                                                                                        + " - "
-                                                                                        + publication.title
-                                                                                        + " ["
-                                                                                        + publication.kind
-                                                                                        + "/"
-                                                                                        + publication.state
-                                                                                        + "]"
-                                                                        ),
-                                                                false
-                                                        );
-                                            }
-
-                                            return 1;
-                                        })
+                                        .executes(context ->
+                                                listRequests(
+                                                        context.getSource(),
+                                                        false
+                                                )
+                                        )
                         )
 
                         .then(
@@ -123,73 +85,22 @@ public final class RequestsCommands {
                                                                 StringArgumentType.word()
                                                         )
                                                         .suggests(
-                                                                (context, builder) -> {
-                                                                    RequestSavedData data =
-                                                                            RequestSavedData.get(
-                                                                                    context.getSource()
-                                                                                            .getServer()
-                                                                            );
-
-                                                                    return SharedSuggestionProvider.suggest(
-                                                                            data.publications
-                                                                                    .keySet()
-                                                                                    .stream()
-                                                                                    .map(UUID::toString),
-                                                                            builder
-                                                                    );
-                                                                }
+                                                                (context, builder) ->
+                                                                        suggestRequestIds(
+                                                                                context.getSource(),
+                                                                                builder,
+                                                                                false
+                                                                        )
                                                         )
-                                                        .executes(context -> {
-                                                            String raw =
-                                                                    StringArgumentType.getString(
-                                                                            context,
-                                                                            "id"
-                                                                    );
-
-                                                            try {
-                                                                UUID id =
-                                                                        UUID.fromString(raw);
-
-                                                                boolean success =
-                                                                        RequestManager.removePublication(
-                                                                                context.getSource()
-                                                                                        .getServer(),
-                                                                                id
-                                                                        );
-
-                                                                if (!success) {
-                                                                    context.getSource()
-                                                                            .sendFailure(
-                                                                                    Component.translatable(
-                                                                                            "bountifulrequests.command.not_found"
-                                                                                    )
-                                                                            );
-
-                                                                    return 0;
-                                                                }
-
-                                                                context.getSource()
-                                                                        .sendSuccess(
-                                                                                () ->
-                                                                                        Component.translatable(
-                                                                                                "bountifulrequests.command.removed"
-                                                                                        ),
-                                                                                true
-                                                                        );
-
-                                                                return 1;
-
-                                                            } catch (Exception exception) {
-                                                                context.getSource()
-                                                                        .sendFailure(
-                                                                                Component.translatable(
-                                                                                        "bountifulrequests.command.invalid_id"
-                                                                                )
-                                                                        );
-
-                                                                return 0;
-                                                            }
-                                                        })
+                                                        .executes(context ->
+                                                                removeRequest(
+                                                                        context.getSource(),
+                                                                        StringArgumentType.getString(
+                                                                                context,
+                                                                                "id"
+                                                                        )
+                                                                )
+                                                        )
                                         )
                         )
 
@@ -229,6 +140,165 @@ public final class RequestsCommands {
                         )
 
                         .then(
+                                Commands.literal("rotation")
+                                        .then(
+                                                Commands.literal("list")
+                                                        .executes(context ->
+                                                                listRequests(
+                                                                        context.getSource(),
+                                                                        true
+                                                                )
+                                                        )
+                                        )
+                                        .then(
+                                                Commands.literal("status")
+                                                        .executes(context ->
+                                                                showRotationStatus(
+                                                                        context.getSource()
+                                                                )
+                                                        )
+                                        )
+                                        .then(
+                                                Commands.literal("refresh")
+                                                        .executes(context -> {
+                                                            RotationManager.refresh(
+                                                                    context.getSource()
+                                                                            .getServer()
+                                                            );
+
+                                                            context.getSource()
+                                                                    .sendSuccess(
+                                                                            () ->
+                                                                                    Component.translatable(
+                                                                                            "bountifulrequests.command.rotation_refreshed"
+                                                                                    ),
+                                                                            true
+                                                                    );
+
+                                                            return 1;
+                                                        })
+                                        )
+                                        .then(
+                                                Commands.literal("slots")
+                                                        .then(
+                                                                Commands.argument(
+                                                                                "count",
+                                                                                IntegerArgumentType.integer(
+                                                                                        1,
+                                                                                        21
+                                                                                )
+                                                                        )
+                                                                        .executes(context -> {
+                                                                            int count =
+                                                                                    IntegerArgumentType.getInteger(
+                                                                                            context,
+                                                                                            "count"
+                                                                                    );
+
+                                                                            RequestSavedData data =
+                                                                                    RequestSavedData.get(
+                                                                                            context.getSource()
+                                                                                                    .getServer()
+                                                                                    );
+
+                                                                            data.setRotationVisibleSlots(
+                                                                                    count
+                                                                            );
+
+                                                                            RotationManager.refresh(
+                                                                                    context.getSource()
+                                                                                            .getServer()
+                                                                            );
+
+                                                                            context.getSource()
+                                                                                    .sendSuccess(
+                                                                                            () ->
+                                                                                                    Component.translatable(
+                                                                                                            "bountifulrequests.command.rotation_slots",
+                                                                                                            count
+                                                                                                    ),
+                                                                                            true
+                                                                                    );
+
+                                                                            return 1;
+                                                                        })
+                                                        )
+                                        )
+                                        .then(
+                                                Commands.literal("interval")
+                                                        .then(
+                                                                Commands.argument(
+                                                                                "minutes",
+                                                                                IntegerArgumentType.integer(
+                                                                                        1,
+                                                                                        10080
+                                                                                )
+                                                                        )
+                                                                        .executes(context -> {
+                                                                            int minutes =
+                                                                                    IntegerArgumentType.getInteger(
+                                                                                            context,
+                                                                                            "minutes"
+                                                                                    );
+
+                                                                            RequestSavedData data =
+                                                                                    RequestSavedData.get(
+                                                                                            context.getSource()
+                                                                                                    .getServer()
+                                                                                    );
+
+                                                                            data.setRotationIntervalSeconds(
+                                                                                    minutes * 60L
+                                                                            );
+
+                                                                            RotationManager.refresh(
+                                                                                    context.getSource()
+                                                                                            .getServer()
+                                                                            );
+
+                                                                            context.getSource()
+                                                                                    .sendSuccess(
+                                                                                            () ->
+                                                                                                    Component.translatable(
+                                                                                                            "bountifulrequests.command.rotation_interval",
+                                                                                                            minutes
+                                                                                                    ),
+                                                                                            true
+                                                                                    );
+
+                                                                            return 1;
+                                                                        })
+                                                        )
+                                        )
+                                        .then(
+                                                Commands.literal("remove")
+                                                        .then(
+                                                                Commands.argument(
+                                                                                "id",
+                                                                                StringArgumentType.word()
+                                                                        )
+                                                                        .suggests(
+                                                                                (context, builder) ->
+                                                                                        suggestRequestIds(
+                                                                                                context.getSource(),
+                                                                                                builder,
+                                                                                                true
+                                                                                        )
+                                                                        )
+                                                                        .executes(context ->
+                                                                                removeRequest(
+                                                                                        context.getSource(),
+                                                                                        StringArgumentType.getString(
+                                                                                                context,
+                                                                                                "id"
+                                                                                        )
+                                                                                )
+                                                                        )
+                                                        )
+                                        )
+                        )
+
+                        .then(
                                 Commands.literal("collect")
                                         .then(
                                                 Commands.literal("deliveries")
@@ -261,11 +331,6 @@ public final class RequestsCommands {
                         )
                         .build();
 
-        /*
-         * Añadimos nuestro nodo directamente al /bo existente.
-         *
-         * NO registramos una segunda raíz.
-         */
         bo.addChild(
                 requests
         );
@@ -273,6 +338,186 @@ public final class RequestsCommands {
         BountifulRequests.LOGGER.info(
                 "Registered /bo requests commands."
         );
+    }
+
+    private static int listRequests(
+            CommandSourceStack source,
+            boolean rotationsOnly
+    ) {
+        RequestSavedData data =
+                RequestSavedData.get(
+                        source.getServer()
+                );
+
+        source.sendSuccess(
+                () -> Component.translatable(
+                        rotationsOnly
+                                ? "bountifulrequests.command.rotation_list_header"
+                                : "bountifulrequests.command.list_header"
+                ),
+                false
+        );
+
+        int shown = 0;
+
+        for (RequestPublication publication
+                : data.publications.values()) {
+
+            if (publication.state
+                    == RequestPublication.State.REMOVED) {
+                continue;
+            }
+
+            if (rotationsOnly
+                    && !publication.isRotation()) {
+                continue;
+            }
+
+            String extra =
+                    publication.isRotation()
+                            ? (
+                            publication.rotationActive
+                                    ? "ACTIVE"
+                                    : "POOL"
+                    )
+                            : publication.state.name();
+
+            source.sendSuccess(
+                    () -> Component.literal(
+                            "#"
+                                    + publication.shortId
+                                    + " - "
+                                    + publication.title
+                                    + " ["
+                                    + publication.kind
+                                    + "/"
+                                    + extra
+                                    + "]"
+                    ),
+                    false
+            );
+
+            shown++;
+        }
+
+        if (shown == 0) {
+            source.sendSuccess(
+                    () -> Component.translatable(
+                            "bountifulrequests.command.list_empty"
+                    ),
+                    false
+            );
+        }
+
+        return shown;
+    }
+
+    private static java.util.concurrent.CompletableFuture
+    suggestRequestIds(
+            CommandSourceStack source,
+            com.mojang.brigadier.suggestion.SuggestionsBuilder builder,
+            boolean rotationsOnly
+    ) {
+        RequestSavedData data =
+                RequestSavedData.get(
+                        source.getServer()
+                );
+
+        return SharedSuggestionProvider.suggest(
+                data.publications.values()
+                        .stream()
+                        .filter(publication ->
+                                publication.state
+                                        != RequestPublication.State.REMOVED
+                        )
+                        .filter(publication ->
+                                !rotationsOnly
+                                        || publication.isRotation()
+                        )
+                        .map(publication ->
+                                Integer.toString(
+                                        publication.shortId
+                                )
+                        ),
+                builder
+        );
+    }
+
+    private static int removeRequest(
+            CommandSourceStack source,
+            String raw
+    ) {
+        RequestSavedData data =
+                RequestSavedData.get(
+                        source.getServer()
+                );
+
+        RequestPublication publication =
+                resolvePublication(
+                        data,
+                        raw
+                );
+
+        if (publication == null
+                || !RequestManager.removePublication(
+                source.getServer(),
+                publication.id
+        )) {
+
+            source.sendFailure(
+                    Component.translatable(
+                            "bountifulrequests.command.not_found"
+                    )
+            );
+
+            return 0;
+        }
+
+        source.sendSuccess(
+                () -> Component.translatable(
+                        "bountifulrequests.command.removed_named",
+                        publication.shortId,
+                        publication.title
+                ),
+                true
+        );
+
+        return 1;
+    }
+
+    private static RequestPublication resolvePublication(
+            RequestSavedData data,
+            String raw
+    ) {
+        String normalized =
+                raw.startsWith("#")
+                        ? raw.substring(1)
+                        : raw;
+
+        try {
+            int shortId =
+                    Integer.parseInt(
+                            normalized
+                    );
+
+            RequestPublication found =
+                    data.findByShortId(
+                            shortId
+                    );
+
+            if (found != null) {
+                return found;
+            }
+        } catch (NumberFormatException ignored) {
+        }
+
+        try {
+            return data.publications.get(
+                    UUID.fromString(raw)
+            );
+        } catch (IllegalArgumentException ignored) {
+            return null;
+        }
     }
 
     private static int setDefaults(
@@ -324,5 +569,71 @@ public final class RequestsCommands {
         );
 
         return 1;
+    }
+
+    private static int showRotationStatus(
+            CommandSourceStack source
+    ) {
+        RequestSavedData data =
+                RequestSavedData.get(
+                        source.getServer()
+                );
+
+        long total =
+                data.publications.values()
+                        .stream()
+                        .filter(RequestPublication::isRotation)
+                        .filter(publication ->
+                                publication.state
+                                        == RequestPublication.State.OPEN
+                        )
+                        .count();
+
+        long active =
+                data.publications.values()
+                        .stream()
+                        .filter(RequestPublication::isRotation)
+                        .filter(publication ->
+                                publication.state
+                                        == RequestPublication.State.OPEN
+                        )
+                        .filter(publication ->
+                                publication.rotationActive
+                        )
+                        .count();
+
+        long seconds =
+                RotationManager.secondsUntilNextRefresh(
+                        source.getServer()
+                );
+
+        source.sendSuccess(
+                () -> Component.translatable(
+                        "bountifulrequests.command.rotation_status",
+                        active,
+                        data.getRotationVisibleSlots(),
+                        total,
+                        data.getRotationIntervalSeconds() / 60L,
+                        formatSeconds(seconds)
+                ),
+                false
+        );
+
+        return 1;
+    }
+
+    private static String formatSeconds(
+            long seconds
+    ) {
+        long minutes =
+                seconds / 60L;
+
+        long remaining =
+                seconds % 60L;
+
+        return minutes
+                + "m "
+                + remaining
+                + "s";
     }
 }
