@@ -35,7 +35,7 @@
   "bountifulrequests.message.invalid_request": "Este encargo ya no existe.",
   "bountifulrequests.message.expired": "Este encargo ha expirado.",
   "bountifulrequests.message.not_claimed": "Este encargo no está reservado para ti.",
-  "bountifulrequests.message.request_completed": "Tu encargo '%s' fue completado por %s.",
+  "bountifulrequests.message.request_completed": "Tu encargo '%s' fue completado por %s. Revisa tus Entregas para recoger lo recibido.",
   "bountifulrequests.command.list_header": "Encargos activos:",
   "bountifulrequests.command.not_found": "No se encontró el encargo.",
   "bountifulrequests.command.invalid_id": "ID de encargo inválido.",
