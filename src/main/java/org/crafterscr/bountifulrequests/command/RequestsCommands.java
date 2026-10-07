@@ -24,6 +24,10 @@ import net.minecraft.server.level.ServerPlayer;
  * /bo requests editor
  * /bo requests list
  * /bo requests remove <id>
+ * /bo requests defaults
+ * /bo requests defaults on
+ * /bo requests defaults off
+ * /bo requests defaults status
  * /bo requests collect deliveries
  * /bo requests collect returns
  *
@@ -190,6 +194,41 @@ public final class RequestsCommands {
                         )
 
                         .then(
+                                Commands.literal("defaults")
+                                        .executes(context ->
+                                                showDefaultsStatus(
+                                                        context.getSource()
+                                                )
+                                        )
+                                        .then(
+                                                Commands.literal("status")
+                                                        .executes(context ->
+                                                                showDefaultsStatus(
+                                                                        context.getSource()
+                                                                )
+                                                        )
+                                        )
+                                        .then(
+                                                Commands.literal("on")
+                                                        .executes(context ->
+                                                                setDefaults(
+                                                                        context.getSource(),
+                                                                        true
+                                                                )
+                                                        )
+                                        )
+                                        .then(
+                                                Commands.literal("off")
+                                                        .executes(context ->
+                                                                setDefaults(
+                                                                        context.getSource(),
+                                                                        false
+                                                                )
+                                                        )
+                                        )
+                        )
+
+                        .then(
                                 Commands.literal("collect")
                                         .then(
                                                 Commands.literal("deliveries")
@@ -234,5 +273,56 @@ public final class RequestsCommands {
         BountifulRequests.LOGGER.info(
                 "Registered /bo requests commands."
         );
+    }
+
+    private static int setDefaults(
+            CommandSourceStack source,
+            boolean enabled
+    ) {
+        RequestSavedData data =
+                RequestSavedData.get(
+                        source.getServer()
+                );
+
+        data.setDefaultBountifulRequestsEnabled(
+                enabled
+        );
+
+        source.sendSuccess(
+                () -> Component.translatable(
+                        enabled
+                                ? "bountifulrequests.command.defaults_on"
+                                : "bountifulrequests.command.defaults_off"
+                ),
+                true
+        );
+
+        return 1;
+    }
+
+    private static int showDefaultsStatus(
+            CommandSourceStack source
+    ) {
+        RequestSavedData data =
+                RequestSavedData.get(
+                        source.getServer()
+                );
+
+        boolean enabled =
+                data.areDefaultBountifulRequestsEnabled();
+
+        source.sendSuccess(
+                () -> Component.translatable(
+                        "bountifulrequests.command.defaults_status",
+                        Component.translatable(
+                                enabled
+                                        ? "bountifulrequests.command.enabled"
+                                        : "bountifulrequests.command.disabled"
+                        )
+                ),
+                false
+        );
+
+        return 1;
     }
 }
