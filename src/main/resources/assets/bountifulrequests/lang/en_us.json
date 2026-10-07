@@ -68,5 +68,11 @@
   "bountifulrequests.tooltip.cobblemon.defeat_type": "Defeat %s type: %s/%s",
   "bountifulrequests.message.objective_op_only": "Only administrators can create this objective type.",
   "bountifulrequests.message.cobblemon_missing": "Cobblemon is not available on this server.",
-  "bountifulrequests.message.unsupported_objective": "This legacy objective can no longer be published from the editor."
+  "bountifulrequests.message.unsupported_objective": "This legacy objective can no longer be published from the editor.",
+  "bountifulrequests.command.defaults_on": "Automatic Bountiful requests: ENABLED.",
+  "bountifulrequests.command.defaults_off": "Automatic Bountiful requests: DISABLED. The board will use custom requests only.",
+  "bountifulrequests.command.defaults_status": "Automatic Bountiful requests: %s",
+  "bountifulrequests.command.enabled": "ENABLED",
+  "bountifulrequests.command.disabled": "DISABLED",
+  "bountifulrequests.message.new_board_request": "[Requests] %s published a new request: %s"
 }
