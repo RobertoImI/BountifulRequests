@@ -834,7 +834,17 @@ public final class RequestSavedData extends SavedData {
          * Mundos anteriores no tenían IDs cortos. Los asignamos una vez al
          * cargar y adelantamos el contador para evitar colisiones.
          */
-        int maxShortId = 0;
+        int maxShortId =
+                data.publications.values()
+                        .stream()
+                        .mapToInt(publication ->
+                                Math.max(
+                                        0,
+                                        publication.shortId
+                                )
+                        )
+                        .max()
+                        .orElse(0);
 
         for (RequestPublication publication
                 : data.publications.values()) {
@@ -842,12 +852,6 @@ public final class RequestSavedData extends SavedData {
             if (publication.shortId <= 0) {
                 publication.shortId =
                         ++maxShortId;
-            } else {
-                maxShortId =
-                        Math.max(
-                                maxShortId,
-                                publication.shortId
-                        );
             }
         }
 
