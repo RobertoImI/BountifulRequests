@@ -67,5 +67,6 @@
   "bountifulrequests.tooltip.cobblemon.capture_type": "Capture %s type: %s/%s",
   "bountifulrequests.tooltip.cobblemon.defeat_type": "Defeat %s type: %s/%s",
   "bountifulrequests.message.objective_op_only": "Only administrators can create this objective type.",
-  "bountifulrequests.message.cobblemon_missing": "Cobblemon is not available on this server."
+  "bountifulrequests.message.cobblemon_missing": "Cobblemon is not available on this server.",
+  "bountifulrequests.message.unsupported_objective": "This legacy objective can no longer be published from the editor."
 }
