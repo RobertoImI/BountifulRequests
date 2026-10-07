@@ -36,3 +36,10 @@ type="required"
 versionRange="[8.0.0-beta.2,9.0.0)"
 ordering="AFTER"
 side="BOTH"
+
+[[dependencies.${mod_id}]]
+modId="cobblemon"
+type="optional"
+versionRange="[1.7.3,1.8.0)"
+ordering="AFTER"
+side="BOTH"
