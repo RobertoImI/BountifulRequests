@@ -1256,6 +1256,16 @@ public final class RequestManager {
                     objectiveIndex,
                     progress
             );
+
+            /*
+             * Reutilizamos el aviso/sonido nativo de Bountiful cuando TODOS
+             * los objetivos (incluidos los nuestros) estén realmente listos.
+             */
+            new BountyStack(
+                    stack
+            ).checkForCompletionAndAlert(
+                    player
+            );
         }
     }
 
