@@ -1,10 +1,12 @@
 package org.crafterscr.bountifulrequests;
 
 import com.mojang.logging.LogUtils;
+import org.crafterscr.bountifulrequests.compat.cobblemon.CobblemonCompat;
 import org.crafterscr.bountifulrequests.menu.ModMenus;
 import org.slf4j.Logger;
 
 import net.neoforged.bus.api.IEventBus;
+import net.neoforged.fml.ModList;
 import net.neoforged.fml.common.Mod;
 
 /**
@@ -21,6 +23,12 @@ public final class BountifulRequests {
 
     public BountifulRequests(IEventBus modBus) {
         ModMenus.REGISTER.register(modBus);
+
+        if (ModList.get()
+                .isLoaded("cobblemon")) {
+
+            CobblemonCompat.init();
+        }
 
         LOGGER.info("Bountiful Requests Addon initialized.");
     }
