@@ -79,12 +79,17 @@ dependencies {
 
     // KotlinForForge 5.11.0.
     //
-    // Cobblemon y Bountiful exponen firmas Kotlin (Function1,
-    // DeprecationLevel, etc.). Añadir KFF al classpath de desarrollo aporta
-    // kotlin-stdlib y las demás librerías Kotlin necesarias para javac.
-    //
-    // Esto NO incrusta KotlinForForge dentro del JAR de Bountiful Requests.
-    implementation "thedarkcolour:kotlinforforge-neoforge:5.11.0"
+    // El artefacto Maven oficial es ideal para COMPILACIÓN porque expone
+    // correctamente kotlin-stdlib y las firmas Kotlin transitivas a javac.
+    // Lo dejamos compileOnly para que no intente actuar como el mod/runtime
+    // cargado dentro del game layer de ModDev.
+    compileOnly "thedarkcolour:kotlinforforge-neoforge:5.11.0"
+
+    // Para runClient/runServer usamos el JAR completo publicado en Modrinth
+    // (kotlinforforge-5.11.0-all.jar). Este sí contiene el language provider
+    // y las librerías Kotlin mediante JarJar, que Cobblemon necesita desde
+    // el arranque de Mixin.
+    runtimeOnly "maven.modrinth:ordsPcFz:NrSebcsG"
 
     // Cobblemon 1.7.3 NeoForge - integración OPCIONAL.
     // compileOnly permite compilar la integración sin convertir Cobblemon
