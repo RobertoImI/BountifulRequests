@@ -1414,7 +1414,10 @@ public final class RequestManager {
          * Lo que pidió el creador no desaparece.
          * Va a su bandeja "Deliveries".
          */
-        if (!deliveredItems.isEmpty()) {
+        if (!deliveredItems.isEmpty()
+                && publication.kind
+                != RequestPublication.Kind.ROTATION) {
+
             data.addDelivery(
                     publication.owner,
                     deliveredItems
@@ -1446,7 +1449,10 @@ public final class RequestManager {
                                 publication.owner
                         );
 
-        if (owner != null) {
+        if (owner != null
+                && publication.kind
+                != RequestPublication.Kind.ROTATION) {
+
             owner.sendSystemMessage(
                     Component.translatable(
                             "bountifulrequests.message.request_completed",
