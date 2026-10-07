@@ -1486,29 +1486,44 @@ public final class RequestManager {
             return false;
         }
 
-        for (List<ItemStack> bundle
-                : publication.availableBundles) {
+        if (publication.kind
+                != RequestPublication.Kind.ROTATION) {
 
-            data.addReturn(
-                    publication.owner,
-                    bundle
-            );
+            for (List<ItemStack> bundle
+                    : publication.availableBundles) {
+
+                data.addReturn(
+                        publication.owner,
+                        bundle
+                );
+            }
+
+            publication.availableBundles.clear();
         }
 
-        publication.availableBundles.clear();
+        publication.rotationActive = false;
 
         if (publication.activeClaims.isEmpty()) {
             publication.state =
                     RequestPublication.State.REMOVED;
         } else {
             /*
-             * Los jugadores que ya aceptaron mantienen sus rewards.
+             * Los jugadores que ya aceptaron mantienen sus recompensas.
+             * En ROTATION son copias ya reservadas desde la plantilla.
              */
             publication.state =
                     RequestPublication.State.CLOSING;
         }
 
         data.setDirty();
+
+        if (publication.kind
+                == RequestPublication.Kind.ROTATION) {
+
+            RotationManager.refresh(
+                    server
+            );
+        }
 
         return true;
     }
