@@ -279,6 +279,63 @@ public final class RequestManager {
             return false;
         }
 
+        /*
+         * Revalidamos permisos al publicar. Así un borrador antiguo o un
+         * jugador que haya perdido OP no puede saltarse las restricciones.
+         */
+        for (ObjectiveSpec objective
+                : draft.objectives) {
+
+            if (objective.kind
+                    == ObjectiveSpec.Kind.ITEM_TAG
+                    && !player.hasPermissions(2)) {
+
+                player.sendSystemMessage(
+                        Component.translatable(
+                                "bountifulrequests.message.objective_op_only"
+                        )
+                );
+
+                return false;
+            }
+
+            if (objective.isCobblemon()) {
+                if (!player.hasPermissions(2)) {
+                    player.sendSystemMessage(
+                            Component.translatable(
+                                    "bountifulrequests.message.objective_op_only"
+                            )
+                    );
+
+                    return false;
+                }
+
+                if (!ModList.get()
+                        .isLoaded("cobblemon")) {
+
+                    player.sendSystemMessage(
+                            Component.translatable(
+                                    "bountifulrequests.message.cobblemon_missing"
+                            )
+                    );
+
+                    return false;
+                }
+            }
+
+            if (objective.kind
+                    == ObjectiveSpec.Kind.BOUNTIFUL_ENTRY) {
+
+                player.sendSystemMessage(
+                        Component.translatable(
+                                "bountifulrequests.message.unsupported_objective"
+                        )
+                );
+
+                return false;
+            }
+        }
+
         List<ItemStack> firstBundle =
                 InventoryUtil.bundleFromDraft(
                         draft.rewards
