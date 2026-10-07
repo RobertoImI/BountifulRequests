@@ -26,8 +26,10 @@ public final class RequestPublication {
         BOARD,
 
         /**
-         * Publicación administrativa repetible.
-         * Cada claim consume un reward bundle real.
+         * Plantilla administrativa permanente.
+         *
+         * Entra y sale del tablón según el gestor de rotaciones y genera una
+         * copia de su recompensa por cada jugador que la completa.
          */
         ROTATION
     }
@@ -48,6 +50,13 @@ public final class RequestPublication {
     }
 
     public UUID id;
+
+    /**
+     * ID corto y amigable para administración (/bo requests remove 12).
+     * El UUID se mantiene internamente como identidad real.
+     */
+    public int shortId;
+
     public UUID owner;
 
     public String title;
@@ -60,18 +69,29 @@ public final class RequestPublication {
 
     public long publishTick;
 
+    /**
+     * Sólo ROTATION: indica si esta plantilla forma parte del conjunto
+     * visible durante el ciclo actual.
+     */
+    public boolean rotationActive = false;
+
     public final List<ObjectiveSpec> objectives = new ArrayList<>();
 
     /**
-     * Cada elemento es UNA recompensa completa.
+     * Escrow físico para BOARD/HANDOUT.
      *
-     * Ejemplo:
-     * reward = 5 diamantes
-     * usos = 10
-     *
-     * Aquí existirán físicamente 10 bundles de 5 diamantes.
+     * Las ROTATION ya no consumen bundles finitos.
      */
     public final List<List<ItemStack>> availableBundles =
+            new ArrayList<>();
+
+    /**
+     * Sólo ROTATION.
+     *
+     * Plantilla exacta de recompensa definida por el administrador.
+     * Se copia para cada claim; nunca se consume ni se agota.
+     */
+    public final List<ItemStack> rotationRewardTemplate =
             new ArrayList<>();
 
     public final Map<UUID, ActiveClaim> activeClaims =
@@ -88,7 +108,9 @@ public final class RequestPublication {
 
         return switch (kind) {
             case BOARD -> !availableBundles.isEmpty();
-            case ROTATION -> !availableBundles.isEmpty();
+            case ROTATION ->
+                    rotationActive
+                            && !rotationRewardTemplate.isEmpty();
             case HANDOUT -> false;
         };
     }
