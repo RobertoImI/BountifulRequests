@@ -1,5 +1,6 @@
 package org.crafterscr.bountifulrequests.mixin;
 
+import org.crafterscr.bountifulrequests.data.RequestSavedData;
 import org.crafterscr.bountifulrequests.service.BoardPublicationService;
 
 import io.ejekta.bountiful.content.board.BoardBlockEntity;
@@ -23,6 +24,36 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
         remap = false
 )
 public abstract class BoardBlockEntityMixin {
+
+    /**
+     * Único punto que crea bounties automáticos de Bountiful, tanto durante
+     * la población inicial como en las actualizaciones periódicas.
+     */
+    @Inject(
+            method = "randomlyUpdateBoard",
+            at = @At("HEAD"),
+            cancellable = true
+    )
+    private void bountifulrequests$disableDefaultGeneration(
+            CallbackInfo ci
+    ) {
+        BoardBlockEntity board =
+                (BoardBlockEntity) (Object) this;
+
+        if (!(board.getLevel()
+                instanceof net.minecraft.server.level.ServerLevel level)) {
+            return;
+        }
+
+        RequestSavedData data =
+                RequestSavedData.get(
+                        level.getServer()
+                );
+
+        if (!data.areDefaultBountifulRequestsEnabled()) {
+            ci.cancel();
+        }
+    }
 
     @Inject(
             method = "upkeepTryInitialPopulation",
