@@ -1029,15 +1029,6 @@ public final class RequestManager {
                         player.server
                 );
 
-        /*
-         * Los HANDOUT no pasan por BoardBountySlot. Si el jugador tiene uno
-         * en su inventario, el primer evento Cobblemon reserva su reward.
-         */
-        ensureHeldHandoutClaims(
-                player,
-                data
-        );
-
         String normalizedSpecies =
                 speciesId == null
                         ? ""
@@ -1055,6 +1046,21 @@ public final class RequestManager {
                         .collect(
                                 java.util.stream.Collectors.toSet()
                         );
+
+        /*
+         * Los HANDOUT no pasan por BoardBountySlot.
+         *
+         * Sólo reservamos un HANDOUT si ESTE evento realmente coincide con
+         * uno de sus objetivos Cobblemon. Así capturar cualquier Pokémon no
+         * bloquea accidentalmente otros papeles HANDOUT que el jugador lleve.
+         */
+        ensureMatchingHeldHandoutClaims(
+                player,
+                data,
+                capture,
+                normalizedSpecies,
+                normalizedTypes
+        );
 
         boolean changed = false;
 
@@ -1179,9 +1185,12 @@ public final class RequestManager {
         };
     }
 
-    private static void ensureHeldHandoutClaims(
+    private static void ensureMatchingHeldHandoutClaims(
             ServerPlayer player,
-            RequestSavedData data
+            RequestSavedData data,
+            boolean capture,
+            String speciesId,
+            Set<String> pokemonTypes
     ) {
         for (int slot = 0;
              slot < player.getInventory()
@@ -1214,6 +1223,25 @@ public final class RequestManager {
                             player.getUUID()
                     )) {
 
+                continue;
+            }
+
+            boolean matchingObjective =
+                    publication.objectives.stream()
+                            .filter(
+                                    ObjectiveSpec::isCobblemon
+                            )
+                            .anyMatch(
+                                    objective ->
+                                            matchesCobblemonEvent(
+                                                    objective,
+                                                    capture,
+                                                    speciesId,
+                                                    pokemonTypes
+                                            )
+                            );
+
+            if (!matchingObjective) {
                 continue;
             }
 
