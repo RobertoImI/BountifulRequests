@@ -21,6 +21,7 @@ import net.minecraft.client.gui.screens.inventory.AbstractContainerScreen;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceLocation;
+import net.minecraft.util.FormattedCharSequence;
 import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.entity.player.Inventory;
 import net.minecraft.world.item.Item;
@@ -79,10 +80,20 @@ public final class RequestEditorScreen
     private EditBox searchBox;
     private EditBox amountBox;
     private EditBox usesBox;
+    private Button browserAddButton;
 
     private int browserOffset = 0;
     private int localRarity = 0;
     private int confirmedRotationUses = 1;
+
+    /**
+     * Selección temporal de los navegadores.
+     *
+     * Tocar una entrada ya no la agrega inmediatamente. Primero queda
+     * resaltada y el jugador confirma con "Agregar objetivo".
+     */
+    private ObjectiveSpec.Kind selectedKind;
+    private String selectedContent;
 
     public RequestEditorScreen(
             RequestEditorMenu menu,
@@ -131,6 +142,8 @@ public final class RequestEditorScreen
          */
         mode = Mode.MAIN;
         confirmAction = null;
+        selectedKind = null;
+        selectedContent = null;
 
         rebuildWidgets();
     }
@@ -145,6 +158,14 @@ public final class RequestEditorScreen
         searchBox = null;
         amountBox = null;
         usesBox = null;
+        browserAddButton = null;
+
+        /*
+         * Los slots reales siguen existiendo y sincronizados, pero sólo se
+         * muestran en MAIN. Esto evita que el inventario "flote" detrás del
+         * selector, los navegadores y la confirmación.
+         */
+        menu.setMainSlotsVisible(mode == Mode.MAIN);
 
         if (state == null) {
             return;
@@ -539,9 +560,9 @@ public final class RequestEditorScreen
                                 button -> executeConfirmedAction()
                         )
                         .bounds(
-                                x + 20,
-                                y + 132,
-                                96,
+                                x + 70,
+                                y + 174,
+                                100,
                                 20
                         )
                         .build()
@@ -559,8 +580,8 @@ public final class RequestEditorScreen
                                 }
                         )
                         .bounds(
-                                x + 126,
-                                y + 132,
+                                x + 180,
+                                y + 174,
                                 100,
                                 20
                         )
@@ -744,6 +765,8 @@ public final class RequestEditorScreen
     private void openBrowser(Mode newMode) {
         mode = newMode;
         browserOffset = 0;
+        selectedKind = null;
+        selectedContent = null;
         rebuildWidgets();
     }
 
@@ -753,9 +776,9 @@ public final class RequestEditorScreen
 
         searchBox = new EditBox(
                 font,
-                x + 18,
+                x + 30,
                 y + 40,
-                220,
+                200,
                 18,
                 Component.translatable(
                         "bountifulrequests.gui.search"
@@ -769,14 +792,25 @@ public final class RequestEditorScreen
         );
 
         searchBox.setResponder(
-                ignored -> browserOffset = 0
+                ignored -> {
+                    browserOffset = 0;
+
+                    // Una búsqueda nueva invalida la selección anterior para
+                    // evitar agregar accidentalmente algo que ya no se ve.
+                    selectedKind = null;
+                    selectedContent = null;
+
+                    if (browserAddButton != null) {
+                        browserAddButton.active = false;
+                    }
+                }
         );
 
         addRenderableWidget(searchBox);
 
         amountBox = new EditBox(
                 font,
-                x + 250,
+                x + 245,
                 y + 40,
                 74,
                 18,
@@ -793,6 +827,24 @@ public final class RequestEditorScreen
 
         addRenderableWidget(amountBox);
 
+        browserAddButton =
+                Button.builder(
+                                Component.translatable(
+                                        "bountifulrequests.gui.browser_add"
+                                ),
+                                button -> addSelectedObjective()
+                        )
+                        .bounds(
+                                x + 120,
+                                y + 246,
+                                112,
+                                20
+                        )
+                        .build();
+
+        browserAddButton.active = false;
+        addRenderableWidget(browserAddButton);
+
         addBackButton();
     }
 
@@ -804,6 +856,8 @@ public final class RequestEditorScreen
                                 ),
                                 button -> {
                                     mode = Mode.MAIN;
+                                    selectedKind = null;
+                                    selectedContent = null;
                                     rebuildWidgets();
                                 }
                         )
@@ -1139,21 +1193,25 @@ public final class RequestEditorScreen
             int x,
             int y
     ) {
-        // Caja central clara y separada del editor.
+        final int boxWidth = 270;
+        final int boxHeight = 138;
+        final int boxX = x + (imageWidth - boxWidth) / 2;
+        final int boxY = y + 58;
+
         graphics.fill(
-                x + 12,
-                y + 60,
-                x + 234,
-                y + 160,
+                boxX,
+                boxY,
+                boxX + boxWidth,
+                boxY + boxHeight,
                 0xFF202020
         );
 
         drawBorder(
                 graphics,
-                x + 12,
-                y + 60,
-                222,
-                100,
+                boxX,
+                boxY,
+                boxWidth,
+                boxHeight,
                 0xFF777777
         );
 
@@ -1162,28 +1220,56 @@ public final class RequestEditorScreen
                 Component.translatable(
                         "bountifulrequests.gui.confirm.title"
                 ),
-                x + 123,
-                y + 76,
+                boxX + boxWidth / 2,
+                boxY + 16,
                 0xFFFFFF
         );
 
-        graphics.drawCenteredString(
-                font,
-                confirmationMessage(),
-                x + 123,
-                y + 98,
-                0xDDDDDD
-        );
+        /*
+         * El texto se parte al ancho real de la caja para que nunca vuelva
+         * a salirse del panel, incluso con idiomas más largos.
+         */
+        List<FormattedCharSequence> messageLines =
+                font.split(
+                        confirmationMessage(),
+                        boxWidth - 28
+                );
 
-        graphics.drawCenteredString(
-                font,
-                Component.translatable(
-                        "bountifulrequests.gui.confirm.note"
-                ),
-                x + 123,
-                y + 114,
-                0xAAAAAA
-        );
+        int textY = boxY + 42;
+
+        for (FormattedCharSequence line : messageLines) {
+            graphics.drawCenteredString(
+                    font,
+                    line,
+                    boxX + boxWidth / 2,
+                    textY,
+                    0xDDDDDD
+            );
+
+            textY += 11;
+        }
+
+        textY += 7;
+
+        List<FormattedCharSequence> noteLines =
+                font.split(
+                        Component.translatable(
+                                "bountifulrequests.gui.confirm.note"
+                        ),
+                        boxWidth - 28
+                );
+
+        for (FormattedCharSequence line : noteLines) {
+            graphics.drawCenteredString(
+                    font,
+                    line,
+                    boxX + boxWidth / 2,
+                    textY,
+                    0xAAAAAA
+            );
+
+            textY += 10;
+        }
     }
 
     private static void drawSlotGrid(
@@ -1276,6 +1362,14 @@ public final class RequestEditorScreen
         List<Item> items =
                 filteredItems();
 
+        /*
+         * 9 columnas de 18 px separadas por 2 px.
+         * El conjunto completo queda centrado bajo el título "Objeto".
+         */
+        final int gridWidth = 178;
+        final int gridX = x + (imageWidth - gridWidth) / 2;
+        final int gridY = y + 82;
+
         int start =
                 Math.min(
                         browserOffset,
@@ -1294,22 +1388,35 @@ public final class RequestEditorScreen
             int row = i / 9;
 
             int sx =
-                    x + 25 + column * 20;
+                    gridX + column * 20;
 
             int sy =
-                    y + 82 + row * 20;
+                    gridY + row * 20;
+
+            Item item =
+                    items.get(start + i);
 
             ItemStack stack =
-                    new ItemStack(
-                            items.get(start + i)
-                    );
+                    new ItemStack(item);
+
+            ResourceLocation itemId =
+                    BuiltInRegistries.ITEM
+                            .getKey(item);
+
+            boolean selected =
+                    selectedKind
+                            == ObjectiveSpec.Kind.ITEM
+                            && itemId.toString()
+                            .equals(selectedContent);
 
             graphics.fill(
-                    sx - 1,
-                    sy - 1,
-                    sx + 18,
-                    sy + 18,
-                    0xFF444444
+                    sx - 2,
+                    sy - 2,
+                    sx + 19,
+                    sy + 19,
+                    selected
+                            ? 0xFFFFFFFF
+                            : 0xFF444444
             );
 
             graphics.fill(
@@ -1317,7 +1424,9 @@ public final class RequestEditorScreen
                     sy,
                     sx + 17,
                     sy + 17,
-                    0xFF242424
+                    selected
+                            ? 0xFF555555
+                            : 0xFF242424
             );
 
             graphics.renderItem(
@@ -1349,7 +1458,7 @@ public final class RequestEditorScreen
         List<ResourceLocation> entities =
                 filteredEntities();
 
-        renderTextRows(
+        renderSelectableRows(
                 graphics,
                 x,
                 y,
@@ -1364,7 +1473,11 @@ public final class RequestEditorScreen
                                     + "  §8"
                                     + id;
                         })
-                        .toList()
+                        .toList(),
+                entities.stream()
+                        .map(ResourceLocation::toString)
+                        .toList(),
+                ObjectiveSpec.Kind.ENTITY
         );
     }
 
@@ -1373,14 +1486,20 @@ public final class RequestEditorScreen
             int x,
             int y
     ) {
-        renderTextRows(
+        List<ResourceLocation> tags =
+                filteredTags();
+
+        renderSelectableRows(
                 graphics,
                 x,
                 y,
-                filteredTags()
-                        .stream()
+                tags.stream()
                         .map(id -> "#" + id)
-                        .toList()
+                        .toList(),
+                tags.stream()
+                        .map(ResourceLocation::toString)
+                        .toList(),
+                ObjectiveSpec.Kind.ITEM_TAG
         );
     }
 
@@ -1389,26 +1508,34 @@ public final class RequestEditorScreen
             int x,
             int y
     ) {
-        renderTextRows(
+        List<PoolEntry> entries =
+                filteredBountiful();
+
+        renderSelectableRows(
                 graphics,
                 x,
                 y,
-                filteredBountiful()
-                        .stream()
+                entries.stream()
                         .map(entry ->
                                 entry.getId()
                                         + "  §8"
                                         + entry.getContent()
                         )
-                        .toList()
+                        .toList(),
+                entries.stream()
+                        .map(PoolEntry::getId)
+                        .toList(),
+                ObjectiveSpec.Kind.BOUNTIFUL_ENTRY
         );
     }
 
-    private void renderTextRows(
+    private void renderSelectableRows(
             GuiGraphics graphics,
             int x,
             int y,
-            List<String> rows
+            List<String> rows,
+            List<String> values,
+            ObjectiveSpec.Kind kind
     ) {
         int start =
                 Math.min(
@@ -1427,18 +1554,38 @@ public final class RequestEditorScreen
             int sy =
                     y + 82 + i * 14;
 
+            String value =
+                    values.get(start + i);
+
+            boolean selected =
+                    selectedKind == kind
+                            && value.equals(selectedContent);
+
             graphics.fill(
-                    x + 18,
+                    x + 32,
                     sy,
-                    x + 332,
+                    x + 318,
                     sy + 13,
-                    0xFF282828
+                    selected
+                            ? 0xFF555555
+                            : 0xFF282828
             );
+
+            if (selected) {
+                drawBorder(
+                        graphics,
+                        x + 31,
+                        sy - 1,
+                        288,
+                        15,
+                        0xFFFFFFFF
+                );
+            }
 
             graphics.drawString(
                     font,
                     rows.get(start + i),
-                    x + 23,
+                    x + 37,
                     sy + 2,
                     0xFFFFFF
             );
@@ -1488,15 +1635,19 @@ public final class RequestEditorScreen
             double mouseX,
             double mouseY
     ) {
+        final int gridWidth = 178;
+        final int gridX =
+                leftPos
+                        + (imageWidth - gridWidth) / 2;
+
+        final int gridY =
+                topPos + 82;
+
         int localX =
-                (int) mouseX
-                        - leftPos
-                        - 25;
+                (int) mouseX - gridX;
 
         int localY =
-                (int) mouseY
-                        - topPos
-                        - 82;
+                (int) mouseY - gridY;
 
         if (localX < 0 || localY < 0) {
             return false;
@@ -1526,10 +1677,15 @@ public final class RequestEditorScreen
                         items.get(index)
                 );
 
-        sendObjective(
-                ObjectiveSpec.Kind.ITEM,
-                id.toString()
-        );
+        selectedKind =
+                ObjectiveSpec.Kind.ITEM;
+
+        selectedContent =
+                id.toString();
+
+        if (browserAddButton != null) {
+            browserAddButton.active = true;
+        }
 
         return true;
     }
@@ -1558,10 +1714,15 @@ public final class RequestEditorScreen
             return false;
         }
 
-        sendObjective(
-                ObjectiveSpec.Kind.ENTITY,
-                entities.get(index).toString()
-        );
+        selectedKind =
+                ObjectiveSpec.Kind.ENTITY;
+
+        selectedContent =
+                entities.get(index).toString();
+
+        if (browserAddButton != null) {
+            browserAddButton.active = true;
+        }
 
         return true;
     }
@@ -1590,10 +1751,15 @@ public final class RequestEditorScreen
             return false;
         }
 
-        sendObjective(
-                ObjectiveSpec.Kind.ITEM_TAG,
-                tags.get(index).toString()
-        );
+        selectedKind =
+                ObjectiveSpec.Kind.ITEM_TAG;
+
+        selectedContent =
+                tags.get(index).toString();
+
+        if (browserAddButton != null) {
+            browserAddButton.active = true;
+        }
 
         return true;
     }
@@ -1622,10 +1788,15 @@ public final class RequestEditorScreen
             return false;
         }
 
-        sendObjective(
-                ObjectiveSpec.Kind.BOUNTIFUL_ENTRY,
-                entries.get(index).getId()
-        );
+        selectedKind =
+                ObjectiveSpec.Kind.BOUNTIFUL_ENTRY;
+
+        selectedContent =
+                entries.get(index).getId();
+
+        if (browserAddButton != null) {
+            browserAddButton.active = true;
+        }
 
         return true;
     }
@@ -1640,8 +1811,8 @@ public final class RequestEditorScreen
         int y =
                 (int) mouseY - topPos;
 
-        if (x < 18
-                || x > 332
+        if (x < 32
+                || x > 318
                 || y < 82
                 || y >= 222) {
 
@@ -1651,10 +1822,13 @@ public final class RequestEditorScreen
         return (y - 82) / 14;
     }
 
-    private void sendObjective(
-            ObjectiveSpec.Kind kind,
-            String content
-    ) {
+    private void addSelectedObjective() {
+        if (selectedKind == null
+                || selectedContent == null) {
+
+            return;
+        }
+
         int amount =
                 Math.max(
                         1,
@@ -1669,8 +1843,8 @@ public final class RequestEditorScreen
         PacketDistributor.sendToServer(
                 new EditorActionPayload(
                         "ADD_OBJECTIVE",
-                        kind.name(),
-                        content,
+                        selectedKind.name(),
+                        selectedContent,
                         amount,
                         0,
                         false
@@ -1678,6 +1852,8 @@ public final class RequestEditorScreen
         );
 
         mode = Mode.MAIN;
+        selectedKind = null;
+        selectedContent = null;
     }
 
     // ---------------------------------------------------------------------
