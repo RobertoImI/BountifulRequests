@@ -24,6 +24,13 @@ public final class ObjectiveSpec {
         ITEM_TAG,
         ENTITY,
 
+        // Integración opcional con Cobblemon.
+        COBBLEMON_CAPTURE_SPECIES,
+        COBBLEMON_DEFEAT_SPECIES,
+        COBBLEMON_CAPTURE_TYPE,
+        COBBLEMON_DEFEAT_TYPE,
+
+        // Compatibilidad con borradores antiguos. Ya no se expone en GUI.
         // Durante edición contiene el ID de un PoolEntry.
         BOUNTIFUL_ENTRY,
 
@@ -61,6 +68,16 @@ public final class ObjectiveSpec {
         };
 
         return spec;
+    }
+
+    public boolean isCobblemon() {
+        return switch (kind) {
+            case COBBLEMON_CAPTURE_SPECIES,
+                 COBBLEMON_DEFEAT_SPECIES,
+                 COBBLEMON_CAPTURE_TYPE,
+                 COBBLEMON_DEFEAT_TYPE -> true;
+            default -> false;
+        };
     }
 
     public static ObjectiveSpec bountifulEntry(String entryId) {
