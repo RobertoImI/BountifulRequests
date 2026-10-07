@@ -27,6 +27,15 @@ public final class RequestEditorMenu
     private final MinecraftServer server;
 
     /**
+     * Control visual usado por el cliente.
+     *
+     * Los slots reales del menú siempre existen para mantener la
+     * sincronización con el servidor, pero sólo deben dibujarse y aceptar
+     * interacción en la vista principal del editor.
+     */
+    private boolean mainSlotsVisible = true;
+
+    /**
      * Constructor CLIENT.
      */
     public RequestEditorMenu(
@@ -96,6 +105,11 @@ public final class RequestEditorMenu
                             ) {
                                 return !isServerLocked();
                             }
+
+                            @Override
+                            public boolean isActive() {
+                                return mainSlotsVisible;
+                            }
                         }
                 );
             }
@@ -116,7 +130,12 @@ public final class RequestEditorMenu
                                 column + row * 9 + 9,
                                 inventoryX + column * 18,
                                 inventoryY + row * 18
-                        )
+                        ) {
+                            @Override
+                            public boolean isActive() {
+                                return mainSlotsVisible;
+                            }
+                        }
                 );
             }
         }
@@ -129,9 +148,22 @@ public final class RequestEditorMenu
                             column,
                             inventoryX + column * 18,
                             inventoryY + 58
-                    )
+                    ) {
+                        @Override
+                        public boolean isActive() {
+                            return mainSlotsVisible;
+                        }
+                    }
             );
         }
+    }
+
+    /**
+     * Cambia únicamente la visibilidad/interacción de los slots en el GUI.
+     * El servidor conserva el inventario y el escrow sincronizados.
+     */
+    public void setMainSlotsVisible(boolean visible) {
+        this.mainSlotsVisible = visible;
     }
 
     private boolean isServerLocked() {
