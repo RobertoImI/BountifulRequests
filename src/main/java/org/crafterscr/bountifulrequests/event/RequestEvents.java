@@ -4,9 +4,12 @@ import org.crafterscr.bountifulrequests.BountifulRequests;
 import org.crafterscr.bountifulrequests.command.RequestsCommands;
 import org.crafterscr.bountifulrequests.menu.RequestEditorOpener;
 import org.crafterscr.bountifulrequests.network.RequestNetwork;
+import org.crafterscr.bountifulrequests.service.BoardPublicationService;
 import org.crafterscr.bountifulrequests.service.RequestManager;
 
 import net.minecraft.core.registries.BuiltInRegistries;
+import io.ejekta.bountiful.content.board.BoardBlockEntity;
+
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.InteractionHand;
@@ -61,16 +64,6 @@ public final class RequestEvents {
             return;
         }
 
-        if (!event.getEntity()
-                .isShiftKeyDown()) {
-            return;
-        }
-
-        if (!event.getItemStack()
-                .isEmpty()) {
-            return;
-        }
-
         ResourceLocation blockId =
                 BuiltInRegistries.BLOCK.getKey(
                         event.getLevel()
@@ -88,6 +81,40 @@ public final class RequestEvents {
 
         if (event.getLevel()
                 .isClientSide()) {
+            return;
+        }
+
+        /*
+         * Antes de que Bountiful abra su GUI sincronizamos el Board.
+         * De esta forma una misión recién creada con "Publicar ahora"
+         * aparece en el mismo momento en que cualquier jugador abre el
+         * tablón, incluso si todavía no llegó el siguiente tick de sync.
+         */
+        if (event.getLevel()
+                .getBlockEntity(
+                        event.getPos()
+                ) instanceof BoardBlockEntity board) {
+
+            BoardPublicationService.sync(
+                    board
+            );
+        }
+
+        /*
+         * Clic normal:
+         * dejamos que Bountiful abra su tablero como siempre.
+         */
+        if (!event.getEntity()
+                .isShiftKeyDown()) {
+            return;
+        }
+
+        /*
+         * Shift + mano vacía:
+         * abre nuestro editor de encargos.
+         */
+        if (!event.getItemStack()
+                .isEmpty()) {
             return;
         }
 
