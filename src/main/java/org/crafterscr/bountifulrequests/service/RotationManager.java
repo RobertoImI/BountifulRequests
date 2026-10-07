@@ -14,10 +14,11 @@ import net.minecraft.server.MinecraftServer;
 /**
  * Selección global de plantillas administrativas ROTATION.
  *
- * Las rotaciones son permanentes y no se agotan. En cada ciclo elegimos un
- * subconjunto para mostrar en los Bountiful Boards. Cuando existen suficientes
- * alternativas, priorizamos las que NO estaban visibles en el ciclo anterior
- * para que el tablón realmente cambie.
+ * Una aparición de rotación es GLOBAL:
+ * - se muestra en todos los Boards;
+ * - el primer jugador que la toma la desactiva para todos;
+ * - si nadie la toma, desaparece cuando vence su duración;
+ * - una plantilla inactiva puede volver a ser elegida en una rotación futura.
  */
 public final class RotationManager {
 
@@ -39,12 +40,46 @@ public final class RotationManager {
         RequestSavedData data =
                 RequestSavedData.get(server);
 
+        boolean changed = false;
+
+        /*
+         * Si una misión rotativa sigue en el Board sin que nadie la tome,
+         * su propia duración manda. Al vencer deja de estar visible en TODOS
+         * los Boards y queda disponible para ciclos futuros.
+         */
+        for (RequestPublication publication
+                : data.publications.values()) {
+
+            if (!publication.isRotation()
+                    || !publication.rotationActive) {
+
+                continue;
+            }
+
+            if (publication.rotationVisibleUntilTick > 0L
+                    && now >= publication.rotationVisibleUntilTick) {
+
+                publication.rotationActive = false;
+                publication.rotationAppearanceStartTick = 0L;
+                publication.rotationVisibleUntilTick = 0L;
+
+                changed = true;
+            }
+        }
+
+        if (changed) {
+            data.setDirty();
+        }
+
+        /*
+         * El cambio general del pool ocurre con el intervalo administrativo.
+         * Las misiones que vencieron o fueron tomadas NO se reponen de forma
+         * inmediata: esperan al siguiente refresh de rotación.
+         */
         if (data.getNextRotationTick() <= 0L
                 || now >= data.getNextRotationTick()) {
 
-            refresh(
-                    server
-            );
+            refresh(server);
         }
     }
 
@@ -68,9 +103,8 @@ public final class RotationManager {
                         .count();
 
         /*
-         * Si hay un espacio libre, recalculamos ya para que la nueva plantilla
-         * pueda entrar sin esperar al próximo ciclo. Si el pool ya está lleno,
-         * esperará su turno normal.
+         * Si todavía hay plazas libres, permitimos que una plantilla recién
+         * creada entre de inmediato. Si el cupo está lleno esperará su turno.
          */
         if (active
                 < data.getRotationVisibleSlots()) {
@@ -84,6 +118,10 @@ public final class RotationManager {
     ) {
         RequestSavedData data =
                 RequestSavedData.get(server);
+
+        long now =
+                server.overworld()
+                        .getGameTime();
 
         List<RequestPublication> candidates =
                 data.publications.values()
@@ -132,8 +170,9 @@ public final class RotationManager {
                 new HashSet<>();
 
         /*
-         * Primero entran las que no estaban visibles. Esto produce rotación
-         * real cuando hay más plantillas que slots.
+         * Primero intentamos usar plantillas que NO estaban visibles en el
+         * ciclo anterior. Así el Board cambia de verdad cuando hay suficiente
+         * contenido.
          */
         for (RequestPublication publication
                 : inactive) {
@@ -148,8 +187,8 @@ public final class RotationManager {
         }
 
         /*
-         * Si no existen suficientes alternativas, completamos con algunas de
-         * las que ya estaban visibles.
+         * Si el pool es pequeño, completamos los huecos con algunas de las
+         * que ya estaban activas.
          */
         for (RequestPublication publication
                 : previouslyActive) {
@@ -162,8 +201,6 @@ public final class RotationManager {
                     publication
             );
         }
-
-        boolean changed = false;
 
         for (RequestPublication publication
                 : data.publications.values()) {
@@ -179,19 +216,30 @@ public final class RotationManager {
                             publication
                     );
 
-            if (publication.rotationActive
-                    != shouldBeActive) {
+            publication.rotationActive =
+                    shouldBeActive;
 
-                publication.rotationActive =
-                        shouldBeActive;
+            if (shouldBeActive) {
+                /*
+                 * Esta es una NUEVA aparición global.
+                 * Todos los Boards compartirán exactamente estos ticks.
+                 */
+                publication.rotationAppearanceStartTick =
+                        now;
 
-                changed = true;
+                publication.rotationVisibleUntilTick =
+                        now
+                                + publication.durationSeconds
+                                * 20L;
+
+            } else {
+                publication.rotationAppearanceStartTick =
+                        0L;
+
+                publication.rotationVisibleUntilTick =
+                        0L;
             }
         }
-
-        long now =
-                server.overworld()
-                        .getGameTime();
 
         data.setNextRotationTick(
                 now
@@ -199,9 +247,7 @@ public final class RotationManager {
                         * 20L
         );
 
-        if (changed) {
-            data.setDirty();
-        }
+        data.setDirty();
     }
 
     public static long secondsUntilNextRefresh(
