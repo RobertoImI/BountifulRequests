@@ -17,6 +17,17 @@ java.toolchain.languageVersion = JavaLanguageVersion.of(21)
 repositories {
     mavenCentral()
 
+    // KotlinForForge Maven.
+    // Cobblemon expone APIs Kotlin, por lo que javac necesita kotlin-stdlib
+    // disponible durante la compilación aunque nuestro addon esté escrito en Java.
+    maven {
+        name = "KotlinForForge"
+        url = "https://thedarkcolour.github.io/KotlinForForge/"
+        content {
+            includeGroup "thedarkcolour"
+        }
+    }
+
     exclusiveContent {
         forRepository {
             maven {
@@ -65,6 +76,15 @@ dependencies {
 
     // Kambrik 8.0.0-beta.2 - dependencia usada por Bountiful
     implementation "maven.modrinth:zfbCkvdZ:rCSmCZpX"
+
+    // KotlinForForge 5.11.0.
+    //
+    // Cobblemon y Bountiful exponen firmas Kotlin (Function1,
+    // DeprecationLevel, etc.). Añadir KFF al classpath de desarrollo aporta
+    // kotlin-stdlib y las demás librerías Kotlin necesarias para javac.
+    //
+    // Esto NO incrusta KotlinForForge dentro del JAR de Bountiful Requests.
+    implementation "thedarkcolour:kotlinforforge-neoforge:5.11.0"
 
     // Cobblemon 1.7.3 NeoForge - integración OPCIONAL.
     // compileOnly permite compilar la integración sin convertir Cobblemon
