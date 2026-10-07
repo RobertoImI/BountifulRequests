@@ -100,6 +100,14 @@ public final class RequestEditorScreen
      */
     private ObjectiveSpec.Kind pendingCobblemonKind;
 
+    /*
+     * Cobblemon puede tener cientos o miles de especies (incluyendo addons).
+     * Cacheamos las opciones al abrir el navegador para no reconstruir y
+     * ordenar la Pokédex completa en cada frame.
+     */
+    private List<CobblemonOption> cobblemonSpeciesOptions = List.of();
+    private List<CobblemonOption> cobblemonTypeOptions = List.of();
+
     public RequestEditorScreen(
             RequestEditorMenu menu,
             Inventory inventory,
@@ -904,6 +912,40 @@ public final class RequestEditorScreen
         browserOffset = 0;
         selectedKind = null;
         selectedContent = null;
+
+        if (ModList.get()
+                .isLoaded("cobblemon")) {
+
+            if (browserMode
+                    == Mode.COBBLEMON_SPECIES_BROWSER) {
+
+                List<CobblemonOption> options =
+                        new java.util.ArrayList<>();
+
+                options.add(
+                        new CobblemonOption(
+                                "*",
+                                Component.translatable(
+                                        "bountifulrequests.gui.cobblemon.any"
+                                ).getString()
+                        )
+                );
+
+                options.addAll(
+                        CobblemonClientBridge.speciesOptions()
+                );
+
+                cobblemonSpeciesOptions =
+                        List.copyOf(options);
+
+            } else if (browserMode
+                    == Mode.COBBLEMON_TYPE_BROWSER) {
+
+                cobblemonTypeOptions =
+                        CobblemonClientBridge.typeOptions();
+            }
+        }
+
         rebuildWidgets();
     }
 
@@ -1542,12 +1584,8 @@ public final class RequestEditorScreen
         final int gridY = y + 82;
 
         int start =
-                Math.min(
-                        browserOffset,
-                        Math.max(
-                                0,
-                                items.size() - 45
-                        )
+                clampedItemOffset(
+                        items.size()
                 );
 
         for (int i = 0;
@@ -1727,12 +1765,8 @@ public final class RequestEditorScreen
             ObjectiveSpec.Kind kind
     ) {
         int start =
-                Math.min(
-                        browserOffset,
-                        Math.max(
-                                0,
-                                rows.size() - 10
-                        )
+                clampedTextOffset(
+                        rows.size()
                 );
 
         for (int i = 0;
@@ -1854,13 +1888,15 @@ public final class RequestEditorScreen
             return false;
         }
 
-        int index =
-                browserOffset
-                        + row * 9
-                        + column;
-
         List<Item> items =
                 filteredItems();
+
+        int index =
+                clampedItemOffset(
+                        items.size()
+                )
+                        + row * 9
+                        + column;
 
         if (index < 0 || index >= items.size()) {
             return false;
@@ -1902,7 +1938,9 @@ public final class RequestEditorScreen
                 filteredEntities();
 
         int index =
-                browserOffset + row;
+                clampedTextOffset(
+                        entities.size()
+                ) + row;
 
         if (index >= entities.size()) {
             return false;
@@ -1939,7 +1977,9 @@ public final class RequestEditorScreen
                 filteredTags();
 
         int index =
-                browserOffset + row;
+                clampedTextOffset(
+                        tags.size()
+                ) + row;
 
         if (index >= tags.size()) {
             return false;
@@ -1977,7 +2017,9 @@ public final class RequestEditorScreen
                 filteredCobblemonSpecies();
 
         int index =
-                browserOffset + row;
+                clampedTextOffset(
+                        options.size()
+                ) + row;
 
         if (index >= options.size()) {
             return false;
@@ -2015,7 +2057,9 @@ public final class RequestEditorScreen
                 filteredCobblemonTypes();
 
         int index =
-                browserOffset + row;
+                clampedTextOffset(
+                        options.size()
+                ) + row;
 
         if (index >= options.size()) {
             return false;
@@ -2175,6 +2219,39 @@ public final class RequestEditorScreen
     // FILTERS
     // ---------------------------------------------------------------------
 
+    private int clampedTextOffset(
+            int size
+    ) {
+        return Math.min(
+                browserOffset,
+                Math.max(
+                        0,
+                        size - 10
+                )
+        );
+    }
+
+    private int clampedItemOffset(
+            int size
+    ) {
+        int maxOffset =
+                Math.max(
+                        0,
+                        size - 45
+                );
+
+        /*
+         * El navegador de items avanza por filas de 9.
+         */
+        maxOffset =
+                (maxOffset / 9) * 9;
+
+        return Math.min(
+                browserOffset,
+                maxOffset
+        );
+    }
+
     private String query() {
         if (searchBox == null) {
             return "";
@@ -2279,23 +2356,7 @@ public final class RequestEditorScreen
 
         String query = query();
 
-        List<CobblemonOption> options =
-                new java.util.ArrayList<>();
-
-        options.add(
-                new CobblemonOption(
-                        "*",
-                        Component.translatable(
-                                "bountifulrequests.gui.cobblemon.any"
-                        ).getString()
-                )
-        );
-
-        options.addAll(
-                CobblemonClientBridge.speciesOptions()
-        );
-
-        return options.stream()
+        return cobblemonSpeciesOptions.stream()
                 .filter(option ->
                         query.isBlank()
                                 || option.label()
@@ -2321,7 +2382,7 @@ public final class RequestEditorScreen
 
         String query = query();
 
-        return CobblemonClientBridge.typeOptions()
+        return cobblemonTypeOptions
                 .stream()
                 .filter(option ->
                         query.isBlank()
