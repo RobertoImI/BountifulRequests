@@ -256,6 +256,35 @@ public final class RequestSavedData extends SavedData {
                         )
                 );
 
+                ListTag progressTags =
+                        new ListTag();
+
+                claim.objectiveProgress.forEach(
+                        (objectiveIndex, progress) -> {
+                            CompoundTag progressTag =
+                                    new CompoundTag();
+
+                            progressTag.putInt(
+                                    "Index",
+                                    objectiveIndex
+                            );
+
+                            progressTag.putInt(
+                                    "Progress",
+                                    progress
+                            );
+
+                            progressTags.add(
+                                    progressTag
+                            );
+                        }
+                );
+
+                claimTag.put(
+                        "ObjectiveProgress",
+                        progressTags
+                );
+
                 claims.add(claimTag);
             }
 
@@ -507,6 +536,25 @@ public final class RequestSavedData extends SavedData {
                                 )
                         )
                 );
+
+                ListTag progressTags =
+                        claimTag.getList(
+                                "ObjectiveProgress",
+                                Tag.TAG_COMPOUND
+                        );
+
+                for (int k = 0;
+                     k < progressTags.size();
+                     k++) {
+
+                    CompoundTag progressTag =
+                            progressTags.getCompound(k);
+
+                    claim.objectiveProgress.put(
+                            progressTag.getInt("Index"),
+                            progressTag.getInt("Progress")
+                    );
+                }
 
                 publication.activeClaims.put(
                         player,
