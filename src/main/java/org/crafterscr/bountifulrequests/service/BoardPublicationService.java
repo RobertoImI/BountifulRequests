@@ -1,6 +1,9 @@
 package org.crafterscr.bountifulrequests.service;
 
+import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Set;
 import java.util.UUID;
 
@@ -17,14 +20,15 @@ import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.item.ItemStack;
 
 /**
- * Mantiene sincronizadas nuestras publicaciones con cada Bountiful Board.
+ * Sincroniza publicaciones personalizadas con cada Bountiful Board.
  *
- * Reglas importantes:
- * - una publicación BOARD/ROTATION activa debe aparecer en cada Board cargado;
- * - nunca duplicamos el mismo request en el mismo Board;
- * - si el Board está lleno, preferimos reemplazar un bounty NORMAL de
- *   Bountiful antes que perder una publicación creada por un jugador;
- * - nunca reemplazamos otro request de nuestro addon para hacer espacio.
+ * Prioridad del tablón:
+ * 1. ROTATION activas del ciclo actual.
+ * 2. BOARD publicados directamente por jugadores/admins.
+ * 3. Bounties default de Bountiful, cuando defaults=on.
+ *
+ * De esta forma las plazas configuradas de rotación siguen apareciendo incluso
+ * cuando el servidor tiene muchos pedidos de jugadores.
  */
 public final class BoardPublicationService {
 
@@ -38,6 +42,7 @@ public final class BoardPublicationService {
     ) {
         if (!(board.getLevel()
                 instanceof ServerLevel level)) {
+
             return;
         }
 
@@ -56,7 +61,9 @@ public final class BoardPublicationService {
                 (BoardBlockEntityAccessor) (Object) board;
 
         /*
-         * 1) Limpiar requests que ya no deberían seguir visibles.
+         * 1) Limpieza:
+         * - publicaciones eliminadas/completadas/no visibles;
+         * - bounties default cuando custom-only está activado.
          */
         for (int slot = 0;
              slot < BOUNTY_SLOT_COUNT;
@@ -74,23 +81,14 @@ public final class BoardPublicationService {
                             stack
                     );
 
-            /*
-             * CUSTOM-ONLY:
-             * al desactivar los defaults, retiramos cualquier bounty que no
-             * pertenezca a Bountiful Requests. No tocamos decrees ni slots
-             * fuera de los 21 espacios de bounty.
-             */
             if (id == null) {
                 if (!data.areDefaultBountifulRequestsEnabled()) {
-                    accessor.bountifulrequests$removeBounty(
+                    removeSlot(
+                            accessor,
+                            board,
+                            inventory,
                             slot
                     );
-
-                    inventory.removeItemNoUpdate(
-                            slot
-                    );
-
-                    board.setChanged();
                 }
 
                 continue;
@@ -102,15 +100,12 @@ public final class BoardPublicationService {
             if (publication == null
                     || !publication.isVisibleOnBoard()) {
 
-                accessor.bountifulrequests$removeBounty(
+                removeSlot(
+                        accessor,
+                        board,
+                        inventory,
                         slot
                 );
-
-                /*
-                 * También actualizamos nuestra copia local para que este
-                 * mismo ciclo pueda reutilizar inmediatamente el slot.
-                 */
-                inventory.removeItemNoUpdate(slot);
 
                 continue;
             }
@@ -119,14 +114,26 @@ public final class BoardPublicationService {
         }
 
         /*
-         * 2) Insertar publicaciones activas que falten.
+         * 2) Las rotaciones activas se insertan primero.
          */
-        for (RequestPublication publication
-                : data.publications.values()) {
+        List<RequestPublication> visible =
+                data.publications.values()
+                        .stream()
+                        .filter(
+                                RequestPublication::isVisibleOnBoard
+                        )
+                        .sorted(
+                                Comparator.comparing(
+                                        publication ->
+                                                publication.isRotation()
+                                                        ? 0
+                                                        : 1
+                                )
+                        )
+                        .toList();
 
-            if (!publication.isVisibleOnBoard()) {
-                continue;
-            }
+        for (RequestPublication publication
+                : visible) {
 
             if (existing.contains(
                     publication.id
@@ -136,22 +143,51 @@ public final class BoardPublicationService {
 
             int targetSlot =
                     findInsertionSlot(
-                            inventory
+                            inventory,
+                            data,
+                            publication.isRotation()
                     );
 
             if (targetSlot < 0) {
-                /*
-                 * Esto sólo ocurre si los 21 espacios están ocupados por
-                 * requests activos de nuestro propio addon. En ese caso no
-                 * sacrificamos otro contrato respaldado por escrow.
-                 */
                 BountifulRequests.LOGGER.warn(
-                        "Could not publish request {} to Bountiful board at {}: all bounty slots are occupied by active requests.",
-                        publication.id,
+                        "Could not publish request #{} ({}) to Bountiful board at {}: no eligible bounty slot is available.",
+                        publication.shortId,
+                        publication.title,
                         board.getBlockPos()
                 );
 
                 continue;
+            }
+
+            /*
+             * Si una ROTATION necesita una plaza y el Board está totalmente
+             * ocupado por publicaciones normales nuestras, retiramos una de
+             * esas publicaciones del Board (NO de SavedData). Podrá reaparecer
+             * cuando exista espacio.
+             */
+            ItemStack replaced =
+                    inventory.getItem(
+                            targetSlot
+                    );
+
+            UUID replacedId =
+                    RequestBountyData.getRequestId(
+                            replaced
+                    );
+
+            if (!replaced.isEmpty()) {
+                removeSlot(
+                        accessor,
+                        board,
+                        inventory,
+                        targetSlot
+                );
+
+                if (replacedId != null) {
+                    existing.remove(
+                            replacedId
+                    );
+                }
             }
 
             ItemStack paper =
@@ -175,23 +211,43 @@ public final class BoardPublicationService {
                     publication.id
             );
 
-            /*
-             * addBounty() no llama setChanged() por sí mismo cuando lo
-             * invocamos directamente. Marcamos el BlockEntity para que la
-             * publicación persista al guardar el mundo.
-             */
             board.setChanged();
         }
     }
 
+    private static void removeSlot(
+            BoardBlockEntityAccessor accessor,
+            BoardBlockEntity board,
+            BoardInventory inventory,
+            int slot
+    ) {
+        accessor.bountifulrequests$removeBounty(
+                slot
+        );
+
+        inventory.removeItemNoUpdate(
+                slot
+        );
+
+        board.setChanged();
+    }
+
     /**
-     * Prioridad:
-     * 1. slot vacío;
-     * 2. slot ocupado por un bounty normal de Bountiful;
-     * 3. nunca reemplazar otro request de nuestro addon.
+     * Busca una plaza respetando prioridad.
+     *
+     * Para cualquier publicación:
+     * 1. vacío;
+     * 2. bounty default de Bountiful.
+     *
+     * Para ROTATION además:
+     * 3. una publicación BOARD de nuestro addon.
+     *
+     * Nunca reemplazamos otra ROTATION activa.
      */
     private static int findInsertionSlot(
-            BoardInventory inventory
+            BoardInventory inventory,
+            RequestSavedData data,
+            boolean rotationPriority
     ) {
         for (int slot = 0;
              slot < BOUNTY_SLOT_COUNT;
@@ -219,6 +275,48 @@ public final class BoardPublicationService {
             }
         }
 
-        return -1;
+        if (!rotationPriority) {
+            return -1;
+        }
+
+        List<Integer> replaceable =
+                new ArrayList<>();
+
+        for (int slot = 0;
+             slot < BOUNTY_SLOT_COUNT;
+             slot++) {
+
+            UUID id =
+                    RequestBountyData.getRequestId(
+                            inventory.getItem(slot)
+                    );
+
+            if (id == null) {
+                continue;
+            }
+
+            RequestPublication existingPublication =
+                    data.publications.get(id);
+
+            if (existingPublication != null
+                    && !existingPublication.isRotation()) {
+
+                replaceable.add(
+                        slot
+                );
+            }
+        }
+
+        if (replaceable.isEmpty()) {
+            return -1;
+        }
+
+        /*
+         * Elegimos la última plaza candidata para evitar desplazar siempre el
+         * primer pedido visible del tablón.
+         */
+        return replaceable.get(
+                replaceable.size() - 1
+        );
     }
 }
