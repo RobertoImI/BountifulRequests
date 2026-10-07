@@ -3,6 +3,7 @@ package org.crafterscr.bountifulrequests.service;
 import java.util.List;
 import java.util.UUID;
 
+import org.crafterscr.bountifulrequests.data.ActiveClaim;
 import org.crafterscr.bountifulrequests.data.RequestPublication;
 import org.crafterscr.bountifulrequests.data.RequestSavedData;
 import org.crafterscr.bountifulrequests.util.RequestBountyData;
@@ -88,6 +89,38 @@ public final class RequestCashInService {
             player.sendSystemMessage(
                     Component.translatable(
                             "bountifulrequests.message.not_claimed"
+                    )
+            );
+
+            return false;
+        }
+
+        ActiveClaim claim =
+                publication.activeClaims.get(
+                        player.getUUID()
+                );
+
+        if (claim == null) {
+            player.sendSystemMessage(
+                    Component.translatable(
+                            "bountifulrequests.message.not_claimed"
+                    )
+            );
+
+            return false;
+        }
+
+        /*
+         * Los objetivos Cobblemon llevan su progreso en el claim del
+         * servidor. Deben estar completos antes de tocar cualquier item.
+         */
+        if (!RequestManager.areCobblemonObjectivesComplete(
+                publication,
+                claim
+        )) {
+            player.sendSystemMessage(
+                    Component.translatable(
+                            "bountiful.tooltip.requirements"
                     )
             );
 
