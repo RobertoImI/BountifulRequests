@@ -22,6 +22,17 @@ public interface BoardBlockEntityAccessor {
             ItemStack stack
     );
 
+    /**
+     * Permite insertar en un slot concreto. Es más fiable para nuestras
+     * publicaciones porque podemos comprobar nosotros mismos si el Board
+     * tiene espacio y, si está lleno, reemplazar un bounty normal.
+     */
+    @Invoker("addBounty")
+    void bountifulrequests$addBounty(
+            int slot,
+            ItemStack stack
+    );
+
     @Invoker("removeBounty")
     void bountifulrequests$removeBounty(
             int slot
