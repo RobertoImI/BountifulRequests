@@ -75,6 +75,16 @@ public final class RequestPublication {
      */
     public boolean rotationActive = false;
 
+    /**
+     * Ventana global de la aparición actual de una ROTATION.
+     *
+     * Todos los Boards muestran exactamente la misma aparición y el mismo
+     * contador. Si alguien la toma o se vence, rotationActive pasa a false
+     * hasta que el gestor la elija de nuevo en una rotación futura.
+     */
+    public long rotationAppearanceStartTick = 0L;
+    public long rotationVisibleUntilTick = 0L;
+
     public final List<ObjectiveSpec> objectives = new ArrayList<>();
 
     /**
