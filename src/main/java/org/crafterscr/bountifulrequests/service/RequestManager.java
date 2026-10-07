@@ -877,7 +877,10 @@ public final class RequestManager {
         RequestPublication publication =
                 data.publications.get(requestId);
 
-        if (publication == null) {
+        if (publication == null
+                || publication.state
+                == RequestPublication.State.REMOVED) {
+
             return false;
         }
 
