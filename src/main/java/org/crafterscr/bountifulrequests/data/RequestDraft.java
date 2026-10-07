@@ -41,13 +41,13 @@ public final class RequestDraft {
     // Momento en que terminarán los 10 segundos de anulación.
     public long pendingUntilTick = -1;
 
-    // Sólo usado para ROTATION.
+    /*
+     * Campos legacy conservados para poder abrir mundos/borradores creados
+     * antes de que las rotaciones pasaran a ser plantillas infinitas.
+     * Ya no se usan al crear nuevas rotaciones.
+     */
     public int rotationUses = 1;
 
-    /**
-     * Las recompensas adicionales de una rotación se retiran del inventario
-     * inmediatamente al pulsar "Add to Rotation".
-     */
     public final List<List<ItemStack>> pendingExtraBundles =
             new ArrayList<>();
 
