@@ -48,5 +48,7 @@
   "bountifulrequests.gui.confirm.cancel_draft": "Cancel this draft?",
   "bountifulrequests.gui.confirm.note": "You can go back and keep editing before confirming.",
   "bountifulrequests.gui.confirm.confirm": "Confirm",
-  "bountifulrequests.gui.confirm.keep_editing": "Keep editing"
+  "bountifulrequests.gui.confirm.keep_editing": "Keep editing",
+  "bountifulrequests.gui.browser_add": "Add Objective",
+  "bountifulrequests.paper.request_title": "Request: %s"
 }
