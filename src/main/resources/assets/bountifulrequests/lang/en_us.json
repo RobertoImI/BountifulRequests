@@ -35,7 +35,7 @@
   "bountifulrequests.message.invalid_request": "This request no longer exists.",
   "bountifulrequests.message.expired": "This request has expired.",
   "bountifulrequests.message.not_claimed": "This request is not reserved for you.",
-  "bountifulrequests.message.request_completed": "Your request '%s' was completed by %s.",
+  "bountifulrequests.message.request_completed": "Your request '%s' was completed by %s. Check your Deliveries to collect what was received.",
   "bountifulrequests.command.list_header": "Active requests:",
   "bountifulrequests.command.not_found": "Request not found.",
   "bountifulrequests.command.invalid_id": "Invalid request ID.",
