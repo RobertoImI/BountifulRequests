@@ -19,7 +19,6 @@ import com.mojang.brigadier.tree.CommandNode;
 
 import net.minecraft.commands.CommandSourceStack;
 import net.minecraft.commands.Commands;
-import net.minecraft.commands.SharedSuggestionProvider;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerPlayer;
 
@@ -101,7 +100,8 @@ public final class RequestsCommands {
                                                                         StringArgumentType.getString(
                                                                                 context,
                                                                                 "id"
-                                                                        )
+                                                                        ),
+                                                                        false
                                                                 )
                                                         )
                                         )
@@ -294,7 +294,8 @@ public final class RequestsCommands {
                                                                                         StringArgumentType.getString(
                                                                                                 context,
                                                                                                 "id"
-                                                                                        )
+                                                                                        ),
+                                                                                        true
                                                                                 )
                                                                         )
                                                         )
@@ -426,29 +427,34 @@ public final class RequestsCommands {
                         source.getServer()
                 );
 
-        return SharedSuggestionProvider.suggest(
-                data.publications.values()
-                        .stream()
-                        .filter(publication ->
-                                publication.state
-                                        != RequestPublication.State.REMOVED
-                        )
-                        .filter(publication ->
-                                !rotationsOnly
-                                        || publication.isRotation()
-                        )
-                        .map(publication ->
+        data.publications.values()
+                .stream()
+                .filter(publication ->
+                        publication.state
+                                != RequestPublication.State.REMOVED
+                )
+                .filter(publication ->
+                        !rotationsOnly
+                                || publication.isRotation()
+                )
+                .forEach(publication ->
+                        builder.suggest(
                                 Integer.toString(
                                         publication.shortId
+                                ),
+                                Component.literal(
+                                        publication.title
                                 )
-                        ),
-                builder
-        );
+                        )
+                );
+
+        return builder.buildFuture();
     }
 
     private static int removeRequest(
             CommandSourceStack source,
-            String raw
+            String raw,
+            boolean rotationsOnly
     ) {
         RequestSavedData data =
                 RequestSavedData.get(
@@ -462,6 +468,10 @@ public final class RequestsCommands {
                 );
 
         if (publication == null
+                || (
+                rotationsOnly
+                        && !publication.isRotation()
+        )
                 || !RequestManager.removePublication(
                 source.getServer(),
                 publication.id
