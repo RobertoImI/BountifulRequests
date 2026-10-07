@@ -43,6 +43,15 @@ public final class RequestSavedData extends SavedData {
     public final Map<UUID, List<ItemStack>> returns =
             new LinkedHashMap<>();
 
+    /**
+     * true  = Bountiful puede generar sus bounties automáticos normales.
+     * false = el Board queda reservado para publicaciones de este addon.
+     *
+     * El valor por defecto es true para no cambiar el comportamiento de
+     * mundos existentes hasta que un administrador lo desactive.
+     */
+    private boolean defaultBountifulRequestsEnabled = true;
+
     public static RequestSavedData get(MinecraftServer server) {
         return server.overworld()
                 .getDataStorage()
@@ -60,6 +69,21 @@ public final class RequestSavedData extends SavedData {
                 owner,
                 RequestDraft::new
         );
+    }
+
+    public boolean areDefaultBountifulRequestsEnabled() {
+        return defaultBountifulRequestsEnabled;
+    }
+
+    public void setDefaultBountifulRequestsEnabled(
+            boolean enabled
+    ) {
+        if (defaultBountifulRequestsEnabled == enabled) {
+            return;
+        }
+
+        defaultBountifulRequestsEnabled = enabled;
+        setDirty();
     }
 
     public void addDelivery(UUID owner, List<ItemStack> stacks) {
@@ -96,6 +120,11 @@ public final class RequestSavedData extends SavedData {
             CompoundTag root,
             HolderLookup.Provider provider
     ) {
+        root.putBoolean(
+                "DefaultBountifulRequestsEnabled",
+                defaultBountifulRequestsEnabled
+        );
+
         root.put("Drafts", saveDrafts(provider));
         root.put("Publications", savePublications(provider));
 
@@ -331,6 +360,20 @@ public final class RequestSavedData extends SavedData {
     ) {
         RequestSavedData data =
                 new RequestSavedData();
+
+        /*
+         * Compatibilidad hacia atrás:
+         * si la key no existe, mantenemos el comportamiento original de
+         * Bountiful (defaults activados).
+         */
+        if (root.contains(
+                "DefaultBountifulRequestsEnabled"
+        )) {
+            data.defaultBountifulRequestsEnabled =
+                    root.getBoolean(
+                            "DefaultBountifulRequestsEnabled"
+                    );
+        }
 
         loadDrafts(data, root, provider);
         loadPublications(data, root, provider);
