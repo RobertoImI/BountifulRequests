@@ -361,6 +361,16 @@ public final class RequestSavedData extends SavedData {
                     publication.rotationActive
             );
 
+            tag.putLong(
+                    "RotationAppearanceStartTick",
+                    publication.rotationAppearanceStartTick
+            );
+
+            tag.putLong(
+                    "RotationVisibleUntilTick",
+                    publication.rotationVisibleUntilTick
+            );
+
             ListTag objectiveTags = new ListTag();
 
             for (ObjectiveSpec objective
@@ -740,6 +750,16 @@ public final class RequestSavedData extends SavedData {
             publication.rotationActive =
                     tag.getBoolean(
                             "RotationActive"
+                    );
+
+            publication.rotationAppearanceStartTick =
+                    tag.getLong(
+                            "RotationAppearanceStartTick"
+                    );
+
+            publication.rotationVisibleUntilTick =
+                    tag.getLong(
+                            "RotationVisibleUntilTick"
                     );
 
             ListTag objectives =
