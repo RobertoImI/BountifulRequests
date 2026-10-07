@@ -68,5 +68,11 @@
   "bountifulrequests.tooltip.cobblemon.defeat_type": "Derrotar tipo %s: %s/%s",
   "bountifulrequests.message.objective_op_only": "Este tipo de objetivo sólo puede ser creado por administradores.",
   "bountifulrequests.message.cobblemon_missing": "Cobblemon no está disponible en este servidor.",
-  "bountifulrequests.message.unsupported_objective": "Este objetivo antiguo ya no se puede publicar desde el editor."
+  "bountifulrequests.message.unsupported_objective": "Este objetivo antiguo ya no se puede publicar desde el editor.",
+  "bountifulrequests.command.defaults_on": "Pedidos automáticos de Bountiful: ACTIVADOS.",
+  "bountifulrequests.command.defaults_off": "Pedidos automáticos de Bountiful: DESACTIVADOS. El tablón usará solamente encargos personalizados.",
+  "bountifulrequests.command.defaults_status": "Pedidos automáticos de Bountiful: %s",
+  "bountifulrequests.command.enabled": "ACTIVADOS",
+  "bountifulrequests.command.disabled": "DESACTIVADOS",
+  "bountifulrequests.message.new_board_request": "[Encargos] %s publicó un nuevo encargo: %s"
 }
