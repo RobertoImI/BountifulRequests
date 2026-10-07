@@ -2244,7 +2244,7 @@ public final class RequestEditorScreen
          * El navegador de items avanza por filas de 9.
          */
         maxOffset =
-                (maxOffset / 9) * 9;
+                ((maxOffset + 8) / 9) * 9;
 
         return Math.min(
                 browserOffset,
