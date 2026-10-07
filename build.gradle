@@ -67,8 +67,13 @@ dependencies {
     implementation "maven.modrinth:zfbCkvdZ:rCSmCZpX"
 
     // Cobblemon 1.7.3 NeoForge - integración OPCIONAL.
-    // compileOnly evita convertirlo en dependencia obligatoria del addon.
+    // compileOnly permite compilar la integración sin convertir Cobblemon
+    // en dependencia obligatoria del JAR final.
     compileOnly "maven.modrinth:MdwFAVRL:S1TrAn8c"
+
+    // Sólo para los runs de desarrollo (runClient/runServer).
+    // Tampoco se empaqueta dentro de Bountiful Requests.
+    runtimeOnly "maven.modrinth:MdwFAVRL:S1TrAn8c"
 }
 
 tasks.withType(ProcessResources).configureEach {
