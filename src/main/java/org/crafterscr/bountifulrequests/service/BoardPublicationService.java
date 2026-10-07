@@ -6,6 +6,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 import java.util.UUID;
+import java.util.concurrent.ThreadLocalRandom;
 
 import org.crafterscr.bountifulrequests.BountifulRequests;
 import org.crafterscr.bountifulrequests.data.RequestPublication;
@@ -249,16 +250,14 @@ public final class BoardPublicationService {
             RequestSavedData data,
             boolean rotationPriority
     ) {
-        for (int slot = 0;
-             slot < BOUNTY_SLOT_COUNT;
-             slot++) {
+        List<Integer> emptySlots =
+                new ArrayList<>();
 
-            if (inventory.getItem(slot)
-                    .isEmpty()) {
+        List<Integer> defaultSlots =
+                new ArrayList<>();
 
-                return slot;
-            }
-        }
+        List<Integer> normalRequestSlots =
+                new ArrayList<>();
 
         for (int slot = 0;
              slot < BOUNTY_SLOT_COUNT;
@@ -267,31 +266,18 @@ public final class BoardPublicationService {
             ItemStack stack =
                     inventory.getItem(slot);
 
-            if (RequestBountyData.getRequestId(
-                    stack
-            ) == null) {
-
-                return slot;
+            if (stack.isEmpty()) {
+                emptySlots.add(slot);
+                continue;
             }
-        }
-
-        if (!rotationPriority) {
-            return -1;
-        }
-
-        List<Integer> replaceable =
-                new ArrayList<>();
-
-        for (int slot = 0;
-             slot < BOUNTY_SLOT_COUNT;
-             slot++) {
 
             UUID id =
                     RequestBountyData.getRequestId(
-                            inventory.getItem(slot)
+                            stack
                     );
 
             if (id == null) {
+                defaultSlots.add(slot);
                 continue;
             }
 
@@ -301,22 +287,46 @@ public final class BoardPublicationService {
             if (existingPublication != null
                     && !existingPublication.isRotation()) {
 
-                replaceable.add(
-                        slot
-                );
+                normalRequestSlots.add(slot);
             }
         }
 
-        if (replaceable.isEmpty()) {
-            return -1;
+        /*
+         * Igual que la sensación del Bountiful original: no llenamos el Board
+         * de izquierda a derecha. Cada publicación elige una posición al azar
+         * dentro del grupo de slots que puede ocupar.
+         */
+        if (!emptySlots.isEmpty()) {
+            return randomSlot(
+                    emptySlots
+            );
         }
 
-        /*
-         * Elegimos la última plaza candidata para evitar desplazar siempre el
-         * primer pedido visible del tablón.
-         */
-        return replaceable.get(
-                replaceable.size() - 1
+        if (!defaultSlots.isEmpty()) {
+            return randomSlot(
+                    defaultSlots
+            );
+        }
+
+        if (rotationPriority
+                && !normalRequestSlots.isEmpty()) {
+
+            return randomSlot(
+                    normalRequestSlots
+            );
+        }
+
+        return -1;
+    }
+
+    private static int randomSlot(
+            List<Integer> slots
+    ) {
+        return slots.get(
+                ThreadLocalRandom.current()
+                        .nextInt(
+                                slots.size()
+                        )
         );
     }
 }
