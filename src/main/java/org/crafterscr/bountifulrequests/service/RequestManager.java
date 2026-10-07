@@ -810,16 +810,15 @@ public final class RequestManager {
             );
 
             /*
-             * Sólo anunciamos publicaciones que realmente van al tablón.
-             * HANDOUT es un papel privado y no debe generar ruido global.
+             * La ÚNICA publicación que anunciamos globalmente es
+             * "Publicar ahora" (BOARD), sin importar si la creó un jugador
+             * o un admin.
              *
-             * Las rotaciones anuncian su creación UNA sola vez; cada copia
-             * posterior que reaparece en el Board no vuelve a anunciarse.
+             * CREATE_PAPER es privado y ROTATION es contenido administrativo,
+             * por lo que ninguno de los dos genera notificación.
              */
             if (finalKind
-                    == RequestPublication.Kind.BOARD
-                    || finalKind
-                    == RequestPublication.Kind.ROTATION) {
+                    == RequestPublication.Kind.BOARD) {
 
                 Component announcement =
                         Component.translatable(
@@ -967,8 +966,26 @@ public final class RequestManager {
         if (publication.kind
                 == RequestPublication.Kind.BOARD) {
 
+            /*
+             * BOARD publicado con "Publicar ahora":
+             * sólo existe un claim global. En cuanto alguien lo toma deja de
+             * estar visible en todos los demás Boards.
+             */
             publication.state =
                     RequestPublication.State.CLAIMED;
+
+        } else if (publication.kind
+                == RequestPublication.Kind.ROTATION) {
+
+            /*
+             * Cada APARICIÓN de una rotación también es global y exclusiva.
+             * El primer jugador que la toma la retira de todos los Boards.
+             * La plantilla permanente queda intacta y podrá volver a ser
+             * elegida en una rotación futura.
+             */
+            publication.rotationActive = false;
+            publication.rotationAppearanceStartTick = 0L;
+            publication.rotationVisibleUntilTick = 0L;
         }
 
         data.setDirty();
@@ -1515,13 +1532,26 @@ public final class RequestManager {
         RequestPublication publication =
                 data.publications.get(id);
 
-        if (publication == null) {
+        if (publication == null
+                || publication.state
+                == RequestPublication.State.REMOVED) {
+
             return false;
         }
 
         if (publication.kind
                 != RequestPublication.Kind.ROTATION) {
 
+            /*
+             * Si un admin elimina una misión de jugador/admin publicada con
+             * recompensa física, TODO el escrow vuelve al creador:
+             *
+             * - bundles todavía sin reclamar;
+             * - recompensa que hubiera quedado reservada en un claim activo.
+             *
+             * Así el creador nunca pierde sus objetos porque un admin retiró
+             * el pedido del tablón.
+             */
             for (List<ItemStack> bundle
                     : publication.availableBundles) {
 
@@ -1532,20 +1562,37 @@ public final class RequestManager {
             }
 
             publication.availableBundles.clear();
-        }
 
-        publication.rotationActive = false;
+            for (ActiveClaim claim
+                    : publication.activeClaims.values()) {
 
-        if (publication.activeClaims.isEmpty()) {
+                data.addReturn(
+                        publication.owner,
+                        claim.rewardBundle
+                );
+            }
+
+            publication.activeClaims.clear();
             publication.state =
                     RequestPublication.State.REMOVED;
+
         } else {
             /*
-             * Los jugadores que ya aceptaron mantienen sus recompensas.
-             * En ROTATION son copias ya reservadas desde la plantilla.
+             * ROTATION no tiene escrow físico finito. La plantilla deja de
+             * rotar, pero quienes ya tomaron una aparición conservan la
+             * recompensa que el servidor les reservó.
              */
-            publication.state =
-                    RequestPublication.State.CLOSING;
+            publication.rotationActive = false;
+            publication.rotationAppearanceStartTick = 0L;
+            publication.rotationVisibleUntilTick = 0L;
+
+            if (publication.activeClaims.isEmpty()) {
+                publication.state =
+                        RequestPublication.State.REMOVED;
+            } else {
+                publication.state =
+                        RequestPublication.State.CLOSING;
+            }
         }
 
         data.setDirty();
