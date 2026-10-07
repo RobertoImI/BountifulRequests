@@ -560,6 +560,41 @@ public final class RequestSavedData extends SavedData {
                 provider
         );
 
+        /*
+         * Las rotaciones finitas de versiones anteriores podían tener varios
+         * bundles físicos todavía sin usar. Al migrarlas a plantillas
+         * infinitas devolvemos ese escrow al administrador para no perder
+         * objetos. Los claims ya aceptados conservan su reward reservado.
+         */
+        boolean migrated = false;
+
+        for (RequestPublication publication
+                : data.publications.values()) {
+
+            if (publication.kind
+                    != RequestPublication.Kind.ROTATION
+                    || publication.availableBundles.isEmpty()) {
+
+                continue;
+            }
+
+            for (List<ItemStack> bundle
+                    : publication.availableBundles) {
+
+                data.addReturn(
+                        publication.owner,
+                        bundle
+                );
+            }
+
+            publication.availableBundles.clear();
+            migrated = true;
+        }
+
+        if (migrated) {
+            data.setDirty();
+        }
+
         return data;
     }
 
@@ -757,8 +792,6 @@ public final class RequestSavedData extends SavedData {
                                 .map(ItemStack::copy)
                                 .toList()
                 );
-
-                publication.availableBundles.clear();
 
                 if (publication.state
                         == RequestPublication.State.COMPLETED
