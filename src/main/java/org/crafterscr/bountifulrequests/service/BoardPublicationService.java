@@ -65,12 +65,34 @@ public final class BoardPublicationService {
             ItemStack stack =
                     inventory.getItem(slot);
 
+            if (stack.isEmpty()) {
+                continue;
+            }
+
             UUID id =
                     RequestBountyData.getRequestId(
                             stack
                     );
 
+            /*
+             * CUSTOM-ONLY:
+             * al desactivar los defaults, retiramos cualquier bounty que no
+             * pertenezca a Bountiful Requests. No tocamos decrees ni slots
+             * fuera de los 21 espacios de bounty.
+             */
             if (id == null) {
+                if (!data.areDefaultBountifulRequestsEnabled()) {
+                    accessor.bountifulrequests$removeBounty(
+                            slot
+                    );
+
+                    inventory.removeItemNoUpdate(
+                            slot
+                    );
+
+                    board.setChanged();
+                }
+
                 continue;
             }
 
