@@ -54,8 +54,19 @@ public abstract class BountyStackMixin {
         }
 
         /*
-         * La evaluación autoritativa de nuestros objetivos vive en servidor.
-         * Evitamos que el cliente produzca un ping falso por su cuenta.
+         * Las misiones normales de nuestro addon (Item/Entity/Tag) deben
+         * conservar exactamente el comportamiento de Bountiful.
+         */
+        if (RequestBountyData.getCobblemonObjectives(
+                self.getStack()
+        ).isEmpty()) {
+            return;
+        }
+
+        /*
+         * La evaluación autoritativa de los objetivos Cobblemon vive en
+         * servidor. Evitamos únicamente para estas misiones que el cliente
+         * produzca un ping falso por su cuenta.
          */
         if (!(player instanceof ServerPlayer serverPlayer)) {
             ci.cancel();
