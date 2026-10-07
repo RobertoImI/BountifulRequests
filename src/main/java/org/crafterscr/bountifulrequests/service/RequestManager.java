@@ -2,6 +2,8 @@ package org.crafterscr.bountifulrequests.service;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
+import java.util.Set;
 import java.util.UUID;
 
 import org.crafterscr.bountifulrequests.data.ActiveClaim;
@@ -20,6 +22,8 @@ import net.minecraft.network.chat.Component;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.item.ItemStack;
+
+import net.neoforged.fml.ModList;
 
 /**
  * Núcleo del addon.
@@ -114,6 +118,65 @@ public final class RequestManager {
 
         if (draft.isPending()) {
             return;
+        }
+
+        /*
+         * Permisos reales en servidor.
+         *
+         * Jugadores normales:
+         * - ITEM
+         * - ENTITY
+         *
+         * Sólo OP:
+         * - ITEM_TAG
+         * - objetivos COBBLEMON
+         *
+         * Las antiguas BOUNTIFUL_ENTRY se conservan únicamente para
+         * compatibilidad con mundos guardados y no se pueden crear nuevas.
+         */
+        if (objective.kind
+                == ObjectiveSpec.Kind.BOUNTIFUL_ENTRY
+                || objective.kind
+                == ObjectiveSpec.Kind.BOUNTIFUL_RESOLVED) {
+
+            return;
+        }
+
+        if (objective.kind
+                == ObjectiveSpec.Kind.ITEM_TAG
+                && !player.hasPermissions(2)) {
+
+            player.sendSystemMessage(
+                    Component.translatable(
+                            "bountifulrequests.message.objective_op_only"
+                    )
+            );
+
+            return;
+        }
+
+        if (objective.isCobblemon()) {
+            if (!player.hasPermissions(2)) {
+                player.sendSystemMessage(
+                        Component.translatable(
+                                "bountifulrequests.message.objective_op_only"
+                        )
+                );
+
+                return;
+            }
+
+            if (!ModList.get()
+                    .isLoaded("cobblemon")) {
+
+                player.sendSystemMessage(
+                        Component.translatable(
+                                "bountifulrequests.message.cobblemon_missing"
+                        )
+                );
+
+                return;
+            }
         }
 
         if (draft.objectives.size() >= 8) {
@@ -884,6 +947,289 @@ public final class RequestManager {
         }
 
         return false;
+    }
+
+    // ------------------------------------------------------------
+    // COBBLEMON PROGRESS
+    // ------------------------------------------------------------
+
+    /**
+     * Recibe eventos ya normalizados desde la integración opcional.
+     *
+     * Esta clase no referencia tipos de Cobblemon, por lo que el addon
+     * continúa cargando perfectamente cuando Cobblemon no está instalado.
+     */
+    public static void recordCobblemonEvent(
+            ServerPlayer player,
+            boolean capture,
+            String speciesId,
+            Set<String> pokemonTypes
+    ) {
+        RequestSavedData data =
+                RequestSavedData.get(
+                        player.server
+                );
+
+        /*
+         * Los HANDOUT no pasan por BoardBountySlot. Si el jugador tiene uno
+         * en su inventario, el primer evento Cobblemon reserva su reward.
+         */
+        ensureHeldHandoutClaims(
+                player,
+                data
+        );
+
+        String normalizedSpecies =
+                speciesId == null
+                        ? ""
+                        : speciesId.toLowerCase(
+                                Locale.ROOT
+                        );
+
+        Set<String> normalizedTypes =
+                pokemonTypes.stream()
+                        .map(type ->
+                                type.toLowerCase(
+                                        Locale.ROOT
+                                )
+                        )
+                        .collect(
+                                java.util.stream.Collectors.toSet()
+                        );
+
+        boolean changed = false;
+
+        for (RequestPublication publication
+                : data.publications.values()) {
+
+            ActiveClaim claim =
+                    publication.activeClaims.get(
+                            player.getUUID()
+                    );
+
+            if (claim == null) {
+                continue;
+            }
+
+            for (int index = 0;
+                 index < publication.objectives.size();
+                 index++) {
+
+                ObjectiveSpec objective =
+                        publication.objectives.get(
+                                index
+                        );
+
+                if (!objective.isCobblemon()) {
+                    continue;
+                }
+
+                if (!matchesCobblemonEvent(
+                        objective,
+                        capture,
+                        normalizedSpecies,
+                        normalizedTypes
+                )) {
+                    continue;
+                }
+
+                int oldProgress =
+                        claim.objectiveProgress
+                                .getOrDefault(
+                                        index,
+                                        0
+                                );
+
+                if (oldProgress
+                        >= objective.amount) {
+                    continue;
+                }
+
+                int newProgress =
+                        Math.min(
+                                objective.amount,
+                                oldProgress + 1
+                        );
+
+                claim.objectiveProgress.put(
+                        index,
+                        newProgress
+                );
+
+                syncCobblemonProgressToPaper(
+                        player,
+                        publication.id,
+                        index,
+                        newProgress
+                );
+
+                changed = true;
+            }
+        }
+
+        if (changed) {
+            data.setDirty();
+        }
+    }
+
+    private static boolean matchesCobblemonEvent(
+            ObjectiveSpec objective,
+            boolean capture,
+            String speciesId,
+            Set<String> pokemonTypes
+    ) {
+        String content =
+                objective.content == null
+                        ? ""
+                        : objective.content.toLowerCase(
+                                Locale.ROOT
+                        );
+
+        return switch (objective.kind) {
+            case COBBLEMON_CAPTURE_SPECIES ->
+                    capture
+                            && (
+                            "*".equals(content)
+                                    || content.equals(
+                                    speciesId
+                            )
+                    );
+
+            case COBBLEMON_DEFEAT_SPECIES ->
+                    !capture
+                            && (
+                            "*".equals(content)
+                                    || content.equals(
+                                    speciesId
+                            )
+                    );
+
+            case COBBLEMON_CAPTURE_TYPE ->
+                    capture
+                            && pokemonTypes.contains(
+                            content
+                    );
+
+            case COBBLEMON_DEFEAT_TYPE ->
+                    !capture
+                            && pokemonTypes.contains(
+                            content
+                    );
+
+            default -> false;
+        };
+    }
+
+    private static void ensureHeldHandoutClaims(
+            ServerPlayer player,
+            RequestSavedData data
+    ) {
+        for (int slot = 0;
+             slot < player.getInventory()
+                     .getContainerSize();
+             slot++) {
+
+            ItemStack stack =
+                    player.getInventory()
+                            .getItem(slot);
+
+            UUID requestId =
+                    RequestBountyData.getRequestId(
+                            stack
+                    );
+
+            if (requestId == null) {
+                continue;
+            }
+
+            RequestPublication publication =
+                    data.publications.get(
+                            requestId
+                    );
+
+            if (publication == null
+                    || publication.kind
+                    != RequestPublication.Kind.HANDOUT
+                    || publication.activeClaims
+                    .containsKey(
+                            player.getUUID()
+                    )) {
+
+                continue;
+            }
+
+            ensureHandoutClaim(
+                    player,
+                    stack,
+                    publication
+            );
+        }
+    }
+
+    private static void syncCobblemonProgressToPaper(
+            ServerPlayer player,
+            UUID requestId,
+            int objectiveIndex,
+            int progress
+    ) {
+        for (int slot = 0;
+             slot < player.getInventory()
+                     .getContainerSize();
+             slot++) {
+
+            ItemStack stack =
+                    player.getInventory()
+                            .getItem(slot);
+
+            UUID paperRequestId =
+                    RequestBountyData.getRequestId(
+                            stack
+                    );
+
+            if (!requestId.equals(
+                    paperRequestId
+            )) {
+                continue;
+            }
+
+            RequestBountyData.setCobblemonProgress(
+                    stack,
+                    objectiveIndex,
+                    progress
+            );
+        }
+    }
+
+    public static boolean areCobblemonObjectivesComplete(
+            RequestPublication publication,
+            ActiveClaim claim
+    ) {
+        for (int index = 0;
+             index < publication.objectives.size();
+             index++) {
+
+            ObjectiveSpec objective =
+                    publication.objectives.get(
+                            index
+                    );
+
+            if (!objective.isCobblemon()) {
+                continue;
+            }
+
+            int progress =
+                    claim.objectiveProgress
+                            .getOrDefault(
+                                    index,
+                                    0
+                            );
+
+            if (progress < objective.amount) {
+                return false;
+            }
+        }
+
+        return true;
     }
 
     // ------------------------------------------------------------
