@@ -79,12 +79,10 @@ public final class RequestEditorScreen
     private EditBox durationBox;
     private EditBox searchBox;
     private EditBox amountBox;
-    private EditBox usesBox;
     private Button browserAddButton;
 
     private int browserOffset = 0;
     private int localRarity = 0;
-    private int confirmedRotationUses = 1;
 
     /**
      * Selección temporal de los navegadores.
@@ -171,7 +169,6 @@ public final class RequestEditorScreen
         durationBox = null;
         searchBox = null;
         amountBox = null;
-        usesBox = null;
         browserAddButton = null;
 
         /*
@@ -455,25 +452,6 @@ public final class RequestEditorScreen
         );
 
         if (state.admin()) {
-            usesBox = new EditBox(
-                    font,
-                    x + 240,
-                    y + 176,
-                    94,
-                    18,
-                    Component.translatable(
-                            "bountifulrequests.gui.rotation_uses"
-                    )
-            );
-
-            usesBox.setValue(
-                    Integer.toString(
-                            Math.max(1, state.rotationUses())
-                    )
-            );
-
-            addRenderableWidget(usesBox);
-
             addRenderableWidget(
                     Button.builder(
                                     Component.translatable(
@@ -482,15 +460,6 @@ public final class RequestEditorScreen
                                     button -> {
                                         syncDuration();
 
-                                        confirmedRotationUses =
-                                                Math.max(
-                                                        1,
-                                                        parseInt(
-                                                                usesBox.getValue(),
-                                                                1
-                                                        )
-                                                );
-
                                         openConfirmation(
                                                 ConfirmAction.PUBLISH_ROTATION
                                         );
@@ -498,9 +467,9 @@ public final class RequestEditorScreen
                             )
                             .bounds(
                                     x + 240,
-                                    y + 199,
+                                    y + 176,
                                     94,
-                                    18
+                                    20
                             )
                             .build()
             );
@@ -629,13 +598,8 @@ public final class RequestEditorScreen
 
             case PUBLISH_ROTATION ->
                     PacketDistributor.sendToServer(
-                            new EditorActionPayload(
-                                    "PUBLISH_ROTATION",
-                                    "",
-                                    "",
-                                    confirmedRotationUses,
-                                    0,
-                                    false
+                            EditorActionPayload.simple(
+                                    "PUBLISH_ROTATION"
                             )
                     );
 
@@ -676,8 +640,7 @@ public final class RequestEditorScreen
 
             case PUBLISH_ROTATION ->
                     Component.translatable(
-                            "bountifulrequests.gui.confirm.rotation",
-                            confirmedRotationUses
+                            "bountifulrequests.gui.confirm.rotation"
                     );
 
             case CANCEL_DRAFT ->
@@ -1310,18 +1273,6 @@ public final class RequestEditorScreen
                 3,
                 3
         );
-
-        if (state.admin()) {
-            graphics.drawString(
-                    font,
-                    Component.translatable(
-                            "bountifulrequests.gui.rotation_uses"
-                    ),
-                    x + 240,
-                    y + 165,
-                    0xAAAAAA
-            );
-        }
 
         // Inventario.
         graphics.drawCenteredString(
