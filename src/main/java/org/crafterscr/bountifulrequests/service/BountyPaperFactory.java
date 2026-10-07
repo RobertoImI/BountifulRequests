@@ -80,10 +80,15 @@ public final class BountyPaperFactory {
                 new ArrayList<>();
 
         List<ItemStack> displayedReward =
-                publication.availableBundles
-                        .isEmpty()
-                        ? List.of()
-                        : publication.availableBundles.get(0);
+                publication.kind
+                        == RequestPublication.Kind.ROTATION
+                        ? publication.rotationRewardTemplate
+                        : (
+                        publication.availableBundles
+                                .isEmpty()
+                                ? List.of()
+                                : publication.availableBundles.get(0)
+                );
 
         index = 0;
 
