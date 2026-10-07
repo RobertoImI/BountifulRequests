@@ -1,5 +1,9 @@
 package org.crafterscr.bountifulrequests.mixin;
 
+import java.util.List;
+
+import org.crafterscr.bountifulrequests.client.CobblemonClientBridge;
+import org.crafterscr.bountifulrequests.data.ObjectiveSpec;
 import org.crafterscr.bountifulrequests.util.RequestBountyData;
 
 import io.ejekta.bountiful.bounty.BountyRarity;
@@ -9,11 +13,16 @@ import net.minecraft.ChatFormatting;
 import net.minecraft.client.Minecraft;
 import net.minecraft.network.chat.Component;
 import net.minecraft.network.chat.MutableComponent;
+import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.TooltipFlag;
+
+import net.neoforged.fml.ModList;
 
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.injection.At;
 import org.spongepowered.asm.mixin.injection.Inject;
+import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 
 /**
@@ -127,6 +136,121 @@ public abstract class BountyItemMixin {
         }
 
         cir.setReturnValue(result);
+    }
+
+    /**
+     * Añade los objetivos de Cobblemon al tooltip de nuestros encargos.
+     * El progreso viene del CustomData del propio papel y por eso se
+     * sincroniza normalmente con el inventario del jugador.
+     */
+    @Inject(
+            method = "appendHoverText",
+            at = @At("TAIL")
+    )
+    private void bountifulrequests$cobblemonTooltip(
+            ItemStack stack,
+            Item.TooltipContext context,
+            List<Component> tooltip,
+            TooltipFlag flag,
+            CallbackInfo ci
+    ) {
+        List<RequestBountyData.CobblemonObjectiveView> objectives =
+                RequestBountyData.getCobblemonObjectives(
+                        stack
+                );
+
+        if (objectives.isEmpty()) {
+            return;
+        }
+
+        tooltip.add(
+                Component.translatable(
+                                "bountifulrequests.tooltip.cobblemon"
+                        )
+                        .withStyle(
+                                ChatFormatting.GOLD
+                        )
+        );
+
+        for (RequestBountyData.CobblemonObjectiveView objective
+                : objectives) {
+
+            ObjectiveSpec.Kind kind;
+
+            try {
+                kind =
+                        ObjectiveSpec.Kind.valueOf(
+                                objective.kind()
+                        );
+            } catch (Exception ignored) {
+                continue;
+            }
+
+            String target =
+                    objective.content();
+
+            if (ModList.get()
+                    .isLoaded("cobblemon")) {
+
+                if (kind
+                        == ObjectiveSpec.Kind.COBBLEMON_CAPTURE_SPECIES
+                        || kind
+                        == ObjectiveSpec.Kind.COBBLEMON_DEFEAT_SPECIES) {
+
+                    target =
+                            "*".equals(
+                                    objective.content()
+                            )
+                                    ? Component.translatable(
+                                    "bountifulrequests.gui.cobblemon.any"
+                            ).getString()
+                                    : CobblemonClientBridge.speciesLabel(
+                                    objective.content()
+                            );
+
+                } else {
+                    target =
+                            CobblemonClientBridge.typeLabel(
+                                    objective.content()
+                            );
+                }
+            }
+
+            String translationKey =
+                    switch (kind) {
+                        case COBBLEMON_CAPTURE_SPECIES ->
+                                "bountifulrequests.tooltip.cobblemon.capture";
+                        case COBBLEMON_DEFEAT_SPECIES ->
+                                "bountifulrequests.tooltip.cobblemon.defeat";
+                        case COBBLEMON_CAPTURE_TYPE ->
+                                "bountifulrequests.tooltip.cobblemon.capture_type";
+                        case COBBLEMON_DEFEAT_TYPE ->
+                                "bountifulrequests.tooltip.cobblemon.defeat_type";
+                        default -> null;
+                    };
+
+            if (translationKey == null) {
+                continue;
+            }
+
+            boolean complete =
+                    objective.progress()
+                            >= objective.amount();
+
+            tooltip.add(
+                    Component.translatable(
+                                    translationKey,
+                                    target,
+                                    objective.progress(),
+                                    objective.amount()
+                            )
+                            .withStyle(
+                                    complete
+                                            ? ChatFormatting.GREEN
+                                            : ChatFormatting.GRAY
+                            )
+            );
+        }
     }
 
     private static String formatTime(
