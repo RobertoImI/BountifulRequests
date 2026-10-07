@@ -167,6 +167,11 @@ public final class BountyPaperFactory {
                 rarity.ordinal()
         );
 
+        RequestBountyData.setCobblemonObjectives(
+                paper,
+                publication.objectives
+        );
+
         return paper;
     }
 
@@ -207,6 +212,16 @@ public final class BountyPaperFactory {
                     null,
                     null
             );
+
+            /*
+             * Los objetivos Cobblemon se validan server-side por nuestro
+             * sistema de progreso. No los registramos como BountyDataEntry
+             * nativos porque Bountiful no conoce esas lógicas.
+             */
+            case COBBLEMON_CAPTURE_SPECIES,
+                 COBBLEMON_DEFEAT_SPECIES,
+                 COBBLEMON_CAPTURE_TYPE,
+                 COBBLEMON_DEFEAT_TYPE -> null;
 
             /*
              * Los Bountiful Entry ya deberían estar resueltos al publicar.
