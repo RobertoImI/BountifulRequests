@@ -18,6 +18,7 @@ import org.crafterscr.bountifulrequests.util.RequestBountyData;
 
 import io.ejekta.bountiful.components.BountyStack;
 
+import net.minecraft.ChatFormatting;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerPlayer;
@@ -808,6 +809,43 @@ public final class RequestManager {
                             "bountifulrequests.message.published"
                     )
             );
+
+            /*
+             * Sólo anunciamos publicaciones que realmente van al tablón.
+             * HANDOUT es un papel privado y no debe generar ruido global.
+             *
+             * Las rotaciones anuncian su creación UNA sola vez; cada copia
+             * posterior que reaparece en el Board no vuelve a anunciarse.
+             */
+            if (finalKind
+                    == RequestPublication.Kind.BOARD
+                    || finalKind
+                    == RequestPublication.Kind.ROTATION) {
+
+                Component announcement =
+                        Component.translatable(
+                                        "bountifulrequests.message.new_board_request",
+                                        owner.getDisplayName()
+                                                .copy()
+                                                .withStyle(
+                                                        ChatFormatting.GOLD
+                                                ),
+                                        Component.literal(
+                                                        publication.title
+                                                ).withStyle(
+                                                        ChatFormatting.WHITE
+                                                )
+                                )
+                                .withStyle(
+                                        ChatFormatting.YELLOW
+                                );
+
+                server.getPlayerList()
+                        .broadcastSystemMessage(
+                                announcement,
+                                false
+                        );
+            }
 
             RequestNetwork.sendDraftSync(
                     owner
