@@ -10,9 +10,6 @@ import org.crafterscr.bountifulrequests.network.DraftView;
 import org.crafterscr.bountifulrequests.network.EditorActionPayload;
 
 import io.ejekta.bountiful.bounty.BountyRarity;
-import io.ejekta.bountiful.bounty.types.IBountyObjective;
-import io.ejekta.bountiful.content.BountifulContent;
-import io.ejekta.bountiful.data.PoolEntry;
 
 import net.minecraft.client.gui.GuiGraphics;
 import net.minecraft.client.gui.components.Button;
@@ -28,6 +25,7 @@ import net.minecraft.world.item.Item;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
 
+import net.neoforged.fml.ModList;
 import net.neoforged.neoforge.network.PacketDistributor;
 
 /**
@@ -55,7 +53,9 @@ public final class RequestEditorScreen
         ITEM_BROWSER,
         ENTITY_BROWSER,
         TAG_BROWSER,
-        BOUNTIFUL_BROWSER,
+        COBBLEMON_SELECTOR,
+        COBBLEMON_SPECIES_BROWSER,
+        COBBLEMON_TYPE_BROWSER,
         CONFIRMATION
     }
 
@@ -94,6 +94,11 @@ public final class RequestEditorScreen
      */
     private ObjectiveSpec.Kind selectedKind;
     private String selectedContent;
+
+    /**
+     * Acción elegida dentro del submenú Cobblemon.
+     */
+    private ObjectiveSpec.Kind pendingCobblemonKind;
 
     public RequestEditorScreen(
             RequestEditorMenu menu,
@@ -144,6 +149,7 @@ public final class RequestEditorScreen
         confirmAction = null;
         selectedKind = null;
         selectedContent = null;
+        pendingCobblemonKind = null;
 
         rebuildWidgets();
     }
@@ -174,10 +180,12 @@ public final class RequestEditorScreen
         switch (mode) {
             case MAIN -> buildMainWidgets();
             case TYPE_SELECTOR -> buildTypeWidgets();
+            case COBBLEMON_SELECTOR -> buildCobblemonWidgets();
             case ITEM_BROWSER,
                  ENTITY_BROWSER,
                  TAG_BROWSER,
-                 BOUNTIFUL_BROWSER -> buildBrowserWidgets();
+                 COBBLEMON_SPECIES_BROWSER,
+                 COBBLEMON_TYPE_BROWSER -> buildBrowserWidgets();
             case CONFIRMATION -> buildConfirmationWidgets();
         }
     }
@@ -717,14 +725,111 @@ public final class RequestEditorScreen
                         .build()
         );
 
+        /*
+         * Jugadores normales sólo ven Objeto y Eliminar entidad.
+         */
+        if (state.admin()) {
+            addRenderableWidget(
+                    Button.builder(
+                                    Component.translatable(
+                                            "bountifulrequests.gui.objective.tag"
+                                    ),
+                                    button ->
+                                            openBrowser(
+                                                    Mode.TAG_BROWSER
+                                            )
+                            )
+                            .bounds(
+                                    x + 35,
+                                    y + 105,
+                                    125,
+                                    25
+                            )
+                            .build()
+            );
+
+            if (ModList.get()
+                    .isLoaded("cobblemon")) {
+
+                addRenderableWidget(
+                        Button.builder(
+                                        Component.translatable(
+                                                "bountifulrequests.gui.objective.cobblemon"
+                                        ),
+                                        button -> {
+                                            mode =
+                                                    Mode.COBBLEMON_SELECTOR;
+
+                                            rebuildWidgets();
+                                        }
+                                )
+                                .bounds(
+                                        x + 190,
+                                        y + 105,
+                                        125,
+                                        25
+                                )
+                                .build()
+                );
+            }
+        }
+
+        addBackButton();
+    }
+
+    private void buildCobblemonWidgets() {
+        int x = leftPos;
+        int y = topPos;
+
         addRenderableWidget(
                 Button.builder(
                                 Component.translatable(
-                                        "bountifulrequests.gui.objective.tag"
+                                        "bountifulrequests.gui.cobblemon.capture"
                                 ),
                                 button ->
-                                        openBrowser(
-                                                Mode.TAG_BROWSER
+                                        openCobblemonBrowser(
+                                                ObjectiveSpec.Kind.COBBLEMON_CAPTURE_SPECIES,
+                                                Mode.COBBLEMON_SPECIES_BROWSER
+                                        )
+                        )
+                        .bounds(
+                                x + 35,
+                                y + 70,
+                                125,
+                                25
+                        )
+                        .build()
+        );
+
+        addRenderableWidget(
+                Button.builder(
+                                Component.translatable(
+                                        "bountifulrequests.gui.cobblemon.defeat"
+                                ),
+                                button ->
+                                        openCobblemonBrowser(
+                                                ObjectiveSpec.Kind.COBBLEMON_DEFEAT_SPECIES,
+                                                Mode.COBBLEMON_SPECIES_BROWSER
+                                        )
+                        )
+                        .bounds(
+                                x + 190,
+                                y + 70,
+                                125,
+                                25
+                        )
+                        .build()
+        );
+
+        addRenderableWidget(
+                Button.builder(
+                                Component.translatable(
+                                        "bountifulrequests.gui.cobblemon.capture_type"
+                                ),
+                                button ->
+                                        openCobblemonBrowser(
+                                                ObjectiveSpec.Kind.COBBLEMON_CAPTURE_TYPE,
+                                                Mode.COBBLEMON_TYPE_BROWSER
                                         )
                         )
                         .bounds(
@@ -739,11 +844,12 @@ public final class RequestEditorScreen
         addRenderableWidget(
                 Button.builder(
                                 Component.translatable(
-                                        "bountifulrequests.gui.objective.bountiful"
+                                        "bountifulrequests.gui.cobblemon.defeat_type"
                                 ),
                                 button ->
-                                        openBrowser(
-                                                Mode.BOUNTIFUL_BROWSER
+                                        openCobblemonBrowser(
+                                                ObjectiveSpec.Kind.COBBLEMON_DEFEAT_TYPE,
+                                                Mode.COBBLEMON_TYPE_BROWSER
                                         )
                         )
                         .bounds(
@@ -755,7 +861,25 @@ public final class RequestEditorScreen
                         .build()
         );
 
-        addBackButton();
+        addRenderableWidget(
+                Button.builder(
+                                Component.translatable(
+                                        "bountifulrequests.gui.back"
+                                ),
+                                button -> {
+                                    mode = Mode.TYPE_SELECTOR;
+                                    pendingCobblemonKind = null;
+                                    rebuildWidgets();
+                                }
+                        )
+                        .bounds(
+                                leftPos + 18,
+                                topPos + 246,
+                                80,
+                                20
+                        )
+                        .build()
+        );
     }
 
     // ---------------------------------------------------------------------
@@ -764,6 +888,19 @@ public final class RequestEditorScreen
 
     private void openBrowser(Mode newMode) {
         mode = newMode;
+        browserOffset = 0;
+        selectedKind = null;
+        selectedContent = null;
+        pendingCobblemonKind = null;
+        rebuildWidgets();
+    }
+
+    private void openCobblemonBrowser(
+            ObjectiveSpec.Kind kind,
+            Mode browserMode
+    ) {
+        pendingCobblemonKind = kind;
+        mode = browserMode;
         browserOffset = 0;
         selectedKind = null;
         selectedContent = null;
@@ -821,10 +958,6 @@ public final class RequestEditorScreen
 
         amountBox.setValue("1");
 
-        if (mode == Mode.BOUNTIFUL_BROWSER) {
-            amountBox.setEditable(false);
-        }
-
         addRenderableWidget(amountBox);
 
         browserAddButton =
@@ -855,7 +988,14 @@ public final class RequestEditorScreen
                                         "bountifulrequests.gui.back"
                                 ),
                                 button -> {
-                                    mode = Mode.MAIN;
+                                    if (mode == Mode.COBBLEMON_SPECIES_BROWSER
+                                            || mode == Mode.COBBLEMON_TYPE_BROWSER) {
+
+                                        mode = Mode.COBBLEMON_SELECTOR;
+                                    } else {
+                                        mode = Mode.MAIN;
+                                    }
+
                                     selectedKind = null;
                                     selectedContent = null;
                                     rebuildWidgets();
@@ -943,6 +1083,17 @@ public final class RequestEditorScreen
                             0xFFFFFF
                     );
 
+            case COBBLEMON_SELECTOR ->
+                    graphics.drawCenteredString(
+                            font,
+                            Component.translatable(
+                                    "bountifulrequests.gui.cobblemon.select"
+                            ),
+                            x + imageWidth / 2,
+                            y + 47,
+                            0xFFFFFF
+                    );
+
             case ITEM_BROWSER -> {
                 renderBrowserHeader(graphics, x, y);
                 renderItems(
@@ -972,9 +1123,18 @@ public final class RequestEditorScreen
                 );
             }
 
-            case BOUNTIFUL_BROWSER -> {
+            case COBBLEMON_SPECIES_BROWSER -> {
                 renderBrowserHeader(graphics, x, y);
-                renderBountifulEntries(
+                renderCobblemonSpecies(
+                        graphics,
+                        x,
+                        y
+                );
+            }
+
+            case COBBLEMON_TYPE_BROWSER -> {
+                renderBrowserHeader(graphics, x, y);
+                renderCobblemonTypes(
                         graphics,
                         x,
                         y
@@ -1171,9 +1331,20 @@ public final class RequestEditorScreen
                                     "bountifulrequests.gui.objective.tag"
                             );
 
-                    case BOUNTIFUL_BROWSER ->
+                    case COBBLEMON_SPECIES_BROWSER ->
                             Component.translatable(
-                                    "bountifulrequests.gui.objective.bountiful"
+                                    pendingCobblemonKind
+                                            == ObjectiveSpec.Kind.COBBLEMON_CAPTURE_SPECIES
+                                            ? "bountifulrequests.gui.cobblemon.capture"
+                                            : "bountifulrequests.gui.cobblemon.defeat"
+                            );
+
+                    case COBBLEMON_TYPE_BROWSER ->
+                            Component.translatable(
+                                    pendingCobblemonKind
+                                            == ObjectiveSpec.Kind.COBBLEMON_CAPTURE_TYPE
+                                            ? "bountifulrequests.gui.cobblemon.capture_type"
+                                            : "bountifulrequests.gui.cobblemon.defeat_type"
                             );
 
                     default -> Component.empty();
@@ -1503,29 +1674,47 @@ public final class RequestEditorScreen
         );
     }
 
-    private void renderBountifulEntries(
+    private void renderCobblemonSpecies(
             GuiGraphics graphics,
             int x,
             int y
     ) {
-        List<PoolEntry> entries =
-                filteredBountiful();
+        List<CobblemonOption> options =
+                filteredCobblemonSpecies();
 
         renderSelectableRows(
                 graphics,
                 x,
                 y,
-                entries.stream()
-                        .map(entry ->
-                                entry.getId()
-                                        + "  §8"
-                                        + entry.getContent()
-                        )
+                options.stream()
+                        .map(CobblemonOption::label)
                         .toList(),
-                entries.stream()
-                        .map(PoolEntry::getId)
+                options.stream()
+                        .map(CobblemonOption::id)
                         .toList(),
-                ObjectiveSpec.Kind.BOUNTIFUL_ENTRY
+                pendingCobblemonKind
+        );
+    }
+
+    private void renderCobblemonTypes(
+            GuiGraphics graphics,
+            int x,
+            int y
+    ) {
+        List<CobblemonOption> options =
+                filteredCobblemonTypes();
+
+        renderSelectableRows(
+                graphics,
+                x,
+                y,
+                options.stream()
+                        .map(CobblemonOption::label)
+                        .toList(),
+                options.stream()
+                        .map(CobblemonOption::id)
+                        .toList(),
+                pendingCobblemonKind
         );
     }
 
@@ -1618,8 +1807,13 @@ public final class RequestEditorScreen
                 return true;
             }
 
-            if (mode == Mode.BOUNTIFUL_BROWSER
-                    && clickBountiful(mouseX, mouseY)) {
+            if (mode == Mode.COBBLEMON_SPECIES_BROWSER
+                    && clickCobblemonSpecies(mouseX, mouseY)) {
+                return true;
+            }
+
+            if (mode == Mode.COBBLEMON_TYPE_BROWSER
+                    && clickCobblemonType(mouseX, mouseY)) {
                 return true;
             }
         }
@@ -1764,7 +1958,7 @@ public final class RequestEditorScreen
         return true;
     }
 
-    private boolean clickBountiful(
+    private boolean clickCobblemonSpecies(
             double mouseX,
             double mouseY
     ) {
@@ -1774,25 +1968,64 @@ public final class RequestEditorScreen
                         mouseY
                 );
 
-        if (row < 0) {
+        if (row < 0
+                || pendingCobblemonKind == null) {
             return false;
         }
 
-        List<PoolEntry> entries =
-                filteredBountiful();
+        List<CobblemonOption> options =
+                filteredCobblemonSpecies();
 
         int index =
                 browserOffset + row;
 
-        if (index >= entries.size()) {
+        if (index >= options.size()) {
             return false;
         }
 
         selectedKind =
-                ObjectiveSpec.Kind.BOUNTIFUL_ENTRY;
+                pendingCobblemonKind;
 
         selectedContent =
-                entries.get(index).getId();
+                options.get(index).id();
+
+        if (browserAddButton != null) {
+            browserAddButton.active = true;
+        }
+
+        return true;
+    }
+
+    private boolean clickCobblemonType(
+            double mouseX,
+            double mouseY
+    ) {
+        int row =
+                textRowAt(
+                        mouseX,
+                        mouseY
+                );
+
+        if (row < 0
+                || pendingCobblemonKind == null) {
+            return false;
+        }
+
+        List<CobblemonOption> options =
+                filteredCobblemonTypes();
+
+        int index =
+                browserOffset + row;
+
+        if (index >= options.size()) {
+            return false;
+        }
+
+        selectedKind =
+                pendingCobblemonKind;
+
+        selectedContent =
+                options.get(index).id();
 
         if (browserAddButton != null) {
             browserAddButton.active = true;
@@ -1905,7 +2138,8 @@ public final class RequestEditorScreen
         if (mode == Mode.ITEM_BROWSER
                 || mode == Mode.ENTITY_BROWSER
                 || mode == Mode.TAG_BROWSER
-                || mode == Mode.BOUNTIFUL_BROWSER) {
+                || mode == Mode.COBBLEMON_SPECIES_BROWSER
+                || mode == Mode.COBBLEMON_TYPE_BROWSER) {
 
             if (scrollY < 0) {
                 browserOffset +=
@@ -2036,30 +2270,71 @@ public final class RequestEditorScreen
                 .toList();
     }
 
-    private List<PoolEntry> filteredBountiful() {
+    private List<CobblemonOption> filteredCobblemonSpecies() {
+        if (!ModList.get()
+                .isLoaded("cobblemon")) {
+
+            return List.of();
+        }
+
         String query = query();
 
-        return BountifulContent.INSTANCE
-                .getPoolEntryMap()
-                .values()
-                .stream()
-                .filter(entry ->
-                        entry.getTypeLogic()
-                                instanceof IBountyObjective
+        List<CobblemonOption> options =
+                new java.util.ArrayList<>();
+
+        options.add(
+                new CobblemonOption(
+                        "*",
+                        Component.translatable(
+                                "bountifulrequests.gui.cobblemon.any"
+                        ).getString()
                 )
-                .filter(entry ->
+        );
+
+        options.addAll(
+                CobblemonClientBridge.speciesOptions()
+        );
+
+        return options.stream()
+                .filter(option ->
                         query.isBlank()
-                                || entry.getId()
-                                .toLowerCase(Locale.ROOT)
+                                || option.label()
+                                .toLowerCase(
+                                        Locale.ROOT
+                                )
                                 .contains(query)
-                                || entry.getContent()
-                                .toLowerCase(Locale.ROOT)
+                                || option.id()
+                                .toLowerCase(
+                                        Locale.ROOT
+                                )
                                 .contains(query)
                 )
-                .sorted(
-                        Comparator.comparing(
-                                PoolEntry::getId
-                        )
+                .toList();
+    }
+
+    private List<CobblemonOption> filteredCobblemonTypes() {
+        if (!ModList.get()
+                .isLoaded("cobblemon")) {
+
+            return List.of();
+        }
+
+        String query = query();
+
+        return CobblemonClientBridge.typeOptions()
+                .stream()
+                .filter(option ->
+                        query.isBlank()
+                                || option.label()
+                                .toLowerCase(
+                                        Locale.ROOT
+                                )
+                                .contains(query)
+                                || option.id()
+                                .toLowerCase(
+                                        Locale.ROOT
+                                )
+                                .contains(query)
                 )
                 .toList();
     }
@@ -2113,6 +2388,14 @@ public final class RequestEditorScreen
                                         + objective.amount
                         );
 
+                case COBBLEMON_CAPTURE_SPECIES,
+                     COBBLEMON_DEFEAT_SPECIES,
+                     COBBLEMON_CAPTURE_TYPE,
+                     COBBLEMON_DEFEAT_TYPE ->
+                        cobblemonObjectiveText(
+                                objective
+                        );
+
                 case BOUNTIFUL_ENTRY,
                      BOUNTIFUL_RESOLVED ->
                         Component.literal(
@@ -2133,6 +2416,60 @@ public final class RequestEditorScreen
                             + objective.amount
             );
         }
+    }
+
+    private Component cobblemonObjectiveText(
+            ObjectiveSpec objective
+    ) {
+        String target =
+                objective.content;
+
+        if (ModList.get()
+                .isLoaded("cobblemon")) {
+
+            if (objective.kind
+                    == ObjectiveSpec.Kind.COBBLEMON_CAPTURE_SPECIES
+                    || objective.kind
+                    == ObjectiveSpec.Kind.COBBLEMON_DEFEAT_SPECIES) {
+
+                target =
+                        "*".equals(
+                                objective.content
+                        )
+                                ? Component.translatable(
+                                "bountifulrequests.gui.cobblemon.any"
+                        ).getString()
+                                : CobblemonClientBridge.speciesLabel(
+                                objective.content
+                        );
+
+            } else {
+                target =
+                        CobblemonClientBridge.typeLabel(
+                                objective.content
+                        );
+            }
+        }
+
+        String actionKey =
+                switch (objective.kind) {
+                    case COBBLEMON_CAPTURE_SPECIES ->
+                            "bountifulrequests.gui.cobblemon.capture_short";
+                    case COBBLEMON_DEFEAT_SPECIES ->
+                            "bountifulrequests.gui.cobblemon.defeat_short";
+                    case COBBLEMON_CAPTURE_TYPE ->
+                            "bountifulrequests.gui.cobblemon.capture_type_short";
+                    case COBBLEMON_DEFEAT_TYPE ->
+                            "bountifulrequests.gui.cobblemon.defeat_type_short";
+                    default ->
+                            "bountifulrequests.gui.objective.cobblemon";
+                };
+
+        return Component.translatable(
+                actionKey,
+                target,
+                objective.amount
+        );
     }
 
     private static int parseInt(
