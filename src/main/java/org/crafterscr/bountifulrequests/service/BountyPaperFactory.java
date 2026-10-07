@@ -118,22 +118,23 @@ public final class BountyPaperFactory {
             );
         }
 
-        long now = level.getGameTime();
-
         /*
-         * BOARD:
+         * BOARD/HANDOUT:
          * el timer comienza cuando fue publicada.
          *
          * ROTATION:
-         * cada nuevo papel recibe un timer fresco.
-         *
-         * HANDOUT:
-         * comienza desde su creación.
+         * todos los Boards comparten la MISMA aparición y por tanto el mismo
+         * startTime. Esto evita que abrir/sincronizar un Board lejano reinicie
+         * el contador de esa misión.
          */
         long startTime =
                 publication.kind
                         == RequestPublication.Kind.ROTATION
-                        ? now
+                        ? (
+                        publication.rotationAppearanceStartTick > 0L
+                                ? publication.rotationAppearanceStartTick
+                                : level.getGameTime()
+                )
                         : publication.publishTick;
 
         bounty.setObjs(objectives);
