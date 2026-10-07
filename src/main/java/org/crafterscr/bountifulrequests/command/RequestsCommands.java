@@ -1,6 +1,7 @@
 package org.crafterscr.bountifulrequests.command;
 
 import java.util.UUID;
+import java.util.concurrent.CompletableFuture;
 
 import org.crafterscr.bountifulrequests.BountifulRequests;
 import org.crafterscr.bountifulrequests.data.RequestPublication;
@@ -12,6 +13,8 @@ import org.crafterscr.bountifulrequests.service.RotationManager;
 import com.mojang.brigadier.CommandDispatcher;
 import com.mojang.brigadier.arguments.IntegerArgumentType;
 import com.mojang.brigadier.arguments.StringArgumentType;
+import com.mojang.brigadier.suggestion.Suggestions;
+import com.mojang.brigadier.suggestion.SuggestionsBuilder;
 import com.mojang.brigadier.tree.CommandNode;
 
 import net.minecraft.commands.CommandSourceStack;
@@ -412,10 +415,10 @@ public final class RequestsCommands {
         return shown;
     }
 
-    private static java.util.concurrent.CompletableFuture
+    private static CompletableFuture<Suggestions>
     suggestRequestIds(
             CommandSourceStack source,
-            com.mojang.brigadier.suggestion.SuggestionsBuilder builder,
+            SuggestionsBuilder builder,
             boolean rotationsOnly
     ) {
         RequestSavedData data =
