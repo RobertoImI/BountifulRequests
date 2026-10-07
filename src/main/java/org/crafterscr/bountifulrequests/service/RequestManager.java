@@ -1469,9 +1469,13 @@ public final class RequestManager {
                                 publication.owner
                         );
 
+        /*
+         * Aviso privado únicamente para "Publicar ahora".
+         * Nadie más recibe este mensaje.
+         */
         if (owner != null
                 && publication.kind
-                != RequestPublication.Kind.ROTATION) {
+                == RequestPublication.Kind.BOARD) {
 
             owner.sendSystemMessage(
                     Component.translatable(
