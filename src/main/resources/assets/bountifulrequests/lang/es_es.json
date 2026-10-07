@@ -48,5 +48,7 @@
   "bountifulrequests.gui.confirm.cancel_draft": "¿Cancelar este borrador?",
   "bountifulrequests.gui.confirm.note": "Puedes volver y seguir editando antes de confirmar.",
   "bountifulrequests.gui.confirm.confirm": "Confirmar",
-  "bountifulrequests.gui.confirm.keep_editing": "Seguir editando"
+  "bountifulrequests.gui.confirm.keep_editing": "Seguir editando",
+  "bountifulrequests.gui.browser_add": "Agregar objetivo",
+  "bountifulrequests.paper.request_title": "Encargo: %s"
 }
