@@ -65,6 +65,10 @@ dependencies {
 
     // Kambrik 8.0.0-beta.2 - dependencia usada por Bountiful
     implementation "maven.modrinth:zfbCkvdZ:rCSmCZpX"
+
+    // Cobblemon 1.7.3 NeoForge - integración OPCIONAL.
+    // compileOnly evita convertirlo en dependencia obligatoria del addon.
+    compileOnly "maven.modrinth:MdwFAVRL:S1TrAn8c"
 }
 
 tasks.withType(ProcessResources).configureEach {
