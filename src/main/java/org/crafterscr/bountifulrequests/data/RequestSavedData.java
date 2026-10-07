@@ -879,12 +879,16 @@ public final class RequestSavedData extends SavedData {
                         .max()
                         .orElse(0);
 
+        boolean assignedShortIds = false;
+
         for (RequestPublication publication
                 : data.publications.values()) {
 
             if (publication.shortId <= 0) {
                 publication.shortId =
                         ++maxShortId;
+
+                assignedShortIds = true;
             }
         }
 
@@ -893,6 +897,10 @@ public final class RequestSavedData extends SavedData {
                         data.nextShortId,
                         maxShortId + 1
                 );
+
+        if (assignedShortIds) {
+            data.setDirty();
+        }
     }
 
     private static void loadInbox(
