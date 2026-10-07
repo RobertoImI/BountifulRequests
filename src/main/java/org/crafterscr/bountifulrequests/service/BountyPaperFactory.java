@@ -15,12 +15,14 @@ import io.ejekta.bountiful.components.BountyStack;
 import io.ejekta.bountiful.content.BountifulContent;
 import io.ejekta.bountiful.data.PoolEntry;
 
+import net.minecraft.ChatFormatting;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.component.DataComponents;
 import net.minecraft.core.registries.BuiltInRegistries;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.item.ItemStack;
+import net.minecraft.world.item.component.ItemLore;
 
 /**
  * Construye un BountyItem auténtico de Bountiful.
@@ -154,16 +156,32 @@ public final class BountyPaperFactory {
         );
 
         /*
-         * Mostramos el título personalizado como nombre del ItemStack.
+         * IMPORTANTE:
+         *
+         * No usamos CUSTOM_NAME aquí. Bountiful calcula su nombre en cliente
+         * y agrega dinámicamente el tiempo restante:
+         *
+         *   "Common Bounty (29m 42s)"
+         *
+         * Un CUSTOM_NAME lo anulaba y por eso nuestros encargos perdían el
+         * contador. El título personalizado se conserva como lore, mientras
+         * el nombre/timer siguen siendo 100% nativos de Bountiful.
          */
         if (publication.title != null
                 && !publication.title.isBlank()) {
 
+            Component requestTitle =
+                    Component.translatable(
+                                    "bountifulrequests.paper.request_title",
+                                    publication.title
+                            )
+                            .withStyle(ChatFormatting.GRAY);
+
             paper.set(
-                    DataComponents.CUSTOM_NAME,
-                    Component.literal(
-                            publication.title
-                    ).withStyle(rarity.getColor())
+                    DataComponents.LORE,
+                    new ItemLore(
+                            List.of(requestTitle)
+                    )
             );
         }
 
