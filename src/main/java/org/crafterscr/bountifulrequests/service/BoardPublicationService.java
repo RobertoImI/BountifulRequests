@@ -52,6 +52,41 @@ public final class BoardPublicationService {
                         level.getServer()
                 );
 
+        /*
+         * Protección extra de orden de ticks:
+         * si Bountiful elimina un papel vencido antes de que RotationManager
+         * ejecute su tick, no permitimos que sync() lo vuelva a crear durante
+         * ese pequeño intervalo.
+         */
+        long now =
+                level.getGameTime();
+
+        boolean expiredRotation = false;
+
+        for (RequestPublication publication
+                : data.publications.values()) {
+
+            if (!publication.isRotation()
+                    || !publication.rotationActive) {
+
+                continue;
+            }
+
+            if (publication.rotationVisibleUntilTick > 0L
+                    && now >= publication.rotationVisibleUntilTick) {
+
+                publication.rotationActive = false;
+                publication.rotationAppearanceStartTick = 0L;
+                publication.rotationVisibleUntilTick = 0L;
+
+                expiredRotation = true;
+            }
+        }
+
+        if (expiredRotation) {
+            data.setDirty();
+        }
+
         BoardInventory inventory =
                 board.fullInventoryCopy();
 
