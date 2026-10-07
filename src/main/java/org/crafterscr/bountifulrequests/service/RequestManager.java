@@ -324,7 +324,9 @@ public final class RequestManager {
             }
 
             if (objective.kind
-                    == ObjectiveSpec.Kind.BOUNTIFUL_ENTRY) {
+                    == ObjectiveSpec.Kind.BOUNTIFUL_ENTRY
+                    || objective.kind
+                    == ObjectiveSpec.Kind.BOUNTIFUL_RESOLVED) {
 
                 player.sendSystemMessage(
                         Component.translatable(
