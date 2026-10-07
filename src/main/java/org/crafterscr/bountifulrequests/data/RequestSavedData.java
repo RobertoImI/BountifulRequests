@@ -52,6 +52,23 @@ public final class RequestSavedData extends SavedData {
      */
     private boolean defaultBountifulRequestsEnabled = true;
 
+    /**
+     * Gestor global de rotaciones.
+     *
+     * rotationVisibleSlots = cuántas plantillas ROTATION intentamos mostrar
+     * simultáneamente en cada Board.
+     * rotationIntervalSeconds = cada cuánto cambiamos la selección.
+     * nextRotationTick = siguiente momento programado para refrescar.
+     */
+    private int rotationVisibleSlots = 6;
+    private long rotationIntervalSeconds = 30L * 60L;
+    private long nextRotationTick = 0L;
+
+    /**
+     * Siguiente ID corto visible para administración.
+     */
+    private int nextShortId = 1;
+
     public static RequestSavedData get(MinecraftServer server) {
         return server.overworld()
                 .getDataStorage()
@@ -84,6 +101,79 @@ public final class RequestSavedData extends SavedData {
 
         defaultBountifulRequestsEnabled = enabled;
         setDirty();
+    }
+
+    public int getRotationVisibleSlots() {
+        return rotationVisibleSlots;
+    }
+
+    public void setRotationVisibleSlots(
+            int slots
+    ) {
+        rotationVisibleSlots =
+                Math.max(
+                        1,
+                        Math.min(21, slots)
+                );
+
+        setDirty();
+    }
+
+    public long getRotationIntervalSeconds() {
+        return rotationIntervalSeconds;
+    }
+
+    public void setRotationIntervalSeconds(
+            long seconds
+    ) {
+        rotationIntervalSeconds =
+                Math.max(
+                        60L,
+                        seconds
+                );
+
+        setDirty();
+    }
+
+    public long getNextRotationTick() {
+        return nextRotationTick;
+    }
+
+    public void setNextRotationTick(
+            long tick
+    ) {
+        nextRotationTick =
+                Math.max(0L, tick);
+
+        setDirty();
+    }
+
+    public int allocateShortId() {
+        int result =
+                Math.max(
+                        1,
+                        nextShortId
+                );
+
+        nextShortId =
+                result + 1;
+
+        setDirty();
+
+        return result;
+    }
+
+    public RequestPublication findByShortId(
+            int shortId
+    ) {
+        return publications.values()
+                .stream()
+                .filter(publication ->
+                        publication.shortId
+                                == shortId
+                )
+                .findFirst()
+                .orElse(null);
     }
 
     public void addDelivery(UUID owner, List<ItemStack> stacks) {
@@ -123,6 +213,26 @@ public final class RequestSavedData extends SavedData {
         root.putBoolean(
                 "DefaultBountifulRequestsEnabled",
                 defaultBountifulRequestsEnabled
+        );
+
+        root.putInt(
+                "RotationVisibleSlots",
+                rotationVisibleSlots
+        );
+
+        root.putLong(
+                "RotationIntervalSeconds",
+                rotationIntervalSeconds
+        );
+
+        root.putLong(
+                "NextRotationTick",
+                nextRotationTick
+        );
+
+        root.putInt(
+                "NextShortId",
+                nextShortId
         );
 
         root.put("Drafts", saveDrafts(provider));
@@ -213,6 +323,10 @@ public final class RequestSavedData extends SavedData {
             CompoundTag tag = new CompoundTag();
 
             tag.putUUID("Id", publication.id);
+            tag.putInt(
+                    "ShortId",
+                    publication.shortId
+            );
             tag.putUUID("Owner", publication.owner);
 
             tag.putString("Title", publication.title);
@@ -242,6 +356,11 @@ public final class RequestSavedData extends SavedData {
                     publication.publishTick
             );
 
+            tag.putBoolean(
+                    "RotationActive",
+                    publication.rotationActive
+            );
+
             ListTag objectiveTags = new ListTag();
 
             for (ObjectiveSpec objective
@@ -257,6 +376,14 @@ public final class RequestSavedData extends SavedData {
                     StackSerialization.saveBundles(
                             provider,
                             publication.availableBundles
+                    )
+            );
+
+            tag.put(
+                    "RotationRewardTemplate",
+                    StackSerialization.saveList(
+                            provider,
+                            publication.rotationRewardTemplate
                     )
             );
 
@@ -372,6 +499,49 @@ public final class RequestSavedData extends SavedData {
             data.defaultBountifulRequestsEnabled =
                     root.getBoolean(
                             "DefaultBountifulRequestsEnabled"
+                    );
+        }
+
+        if (root.contains("RotationVisibleSlots")) {
+            data.rotationVisibleSlots =
+                    Math.max(
+                            1,
+                            Math.min(
+                                    21,
+                                    root.getInt(
+                                            "RotationVisibleSlots"
+                                    )
+                            )
+                    );
+        }
+
+        if (root.contains("RotationIntervalSeconds")) {
+            data.rotationIntervalSeconds =
+                    Math.max(
+                            60L,
+                            root.getLong(
+                                    "RotationIntervalSeconds"
+                            )
+                    );
+        }
+
+        if (root.contains("NextRotationTick")) {
+            data.nextRotationTick =
+                    Math.max(
+                            0L,
+                            root.getLong(
+                                    "NextRotationTick"
+                            )
+                    );
+        }
+
+        if (root.contains("NextShortId")) {
+            data.nextShortId =
+                    Math.max(
+                            1,
+                            root.getInt(
+                                    "NextShortId"
+                            )
                     );
         }
 
@@ -492,6 +662,11 @@ public final class RequestSavedData extends SavedData {
             publication.id =
                     tag.getUUID("Id");
 
+            publication.shortId =
+                    tag.contains("ShortId")
+                            ? tag.getInt("ShortId")
+                            : 0;
+
             publication.owner =
                     tag.getUUID("Owner");
 
@@ -527,6 +702,11 @@ public final class RequestSavedData extends SavedData {
             publication.publishTick =
                     tag.getLong("PublishTick");
 
+            publication.rotationActive =
+                    tag.getBoolean(
+                            "RotationActive"
+                    );
+
             ListTag objectives =
                     tag.getList(
                             "Objectives",
@@ -550,6 +730,45 @@ public final class RequestSavedData extends SavedData {
                             )
                     )
             );
+
+            publication.rotationRewardTemplate.addAll(
+                    StackSerialization.loadList(
+                            provider,
+                            tag.getList(
+                                    "RotationRewardTemplate",
+                                    Tag.TAG_COMPOUND
+                            )
+                    )
+            );
+
+            /*
+             * Migración de rotaciones antiguas finitas:
+             * usamos el primer bundle guardado como plantilla infinita.
+             */
+            if (publication.kind
+                    == RequestPublication.Kind.ROTATION
+                    && publication.rotationRewardTemplate.isEmpty()
+                    && !publication.availableBundles.isEmpty()) {
+
+                publication.rotationRewardTemplate.addAll(
+                        publication.availableBundles
+                                .get(0)
+                                .stream()
+                                .map(ItemStack::copy)
+                                .toList()
+                );
+
+                publication.availableBundles.clear();
+
+                if (publication.state
+                        == RequestPublication.State.COMPLETED
+                        || publication.state
+                        == RequestPublication.State.EXPIRED) {
+
+                    publication.state =
+                            RequestPublication.State.OPEN;
+                }
+            }
 
             ListTag claims =
                     tag.getList(
@@ -610,6 +829,33 @@ public final class RequestSavedData extends SavedData {
                     publication
             );
         }
+
+        /*
+         * Mundos anteriores no tenían IDs cortos. Los asignamos una vez al
+         * cargar y adelantamos el contador para evitar colisiones.
+         */
+        int maxShortId = 0;
+
+        for (RequestPublication publication
+                : data.publications.values()) {
+
+            if (publication.shortId <= 0) {
+                publication.shortId =
+                        ++maxShortId;
+            } else {
+                maxShortId =
+                        Math.max(
+                                maxShortId,
+                                publication.shortId
+                        );
+            }
+        }
+
+        data.nextShortId =
+                Math.max(
+                        data.nextShortId,
+                        maxShortId + 1
+                );
     }
 
     private static void loadInbox(
