@@ -420,6 +420,9 @@ public final class RequestSavedData extends SavedData {
                         "Player",
                         claim.player
                 );
+                if (claim.claimId != null) {
+                    claimTag.putUUID("ClaimId", claim.claimId);
+                }
 
                 claimTag.putLong(
                         "Expires",
@@ -871,6 +874,9 @@ public final class RequestSavedData extends SavedData {
                                 player,
                                 claimTag.getLong("Expires")
                         );
+
+                claim.claimId = claimTag.hasUUID("ClaimId")
+                        ? claimTag.getUUID("ClaimId") : null;
 
                 claim.rewardBundle.addAll(
                         StackSerialization.loadList(
