@@ -41,6 +41,31 @@ public final class RequestManager {
     // DRAFT
     // ------------------------------------------------------------
 
+    public static void setRotationCopies(ServerPlayer player, int amount) {
+        if (!player.hasPermissions(2)) return;
+        RequestDraft draft = draft(player);
+        if (draft.isPending()) return;
+        draft.rotationCopies = Math.max(1, Math.min(9999, amount));
+        RequestSavedData.get(player.server).setDirty();
+    }
+
+    public static void setRotationRepeatable(ServerPlayer player, boolean repeatable) {
+        if (!player.hasPermissions(2)) return;
+        RequestDraft draft = draft(player);
+        if (draft.isPending()) return;
+        draft.rotationRepeatable = repeatable;
+        RequestSavedData.get(player.server).setDirty();
+    }
+
+    /** Hay como máximo un encargo personalizado aceptado por jugador. */
+    public static RequestPublication findActivePublication(RequestSavedData data, UUID player) {
+        for (RequestPublication publication : data.publications.values()) {
+            if (publication.activeClaims.containsKey(player)) return publication;
+        }
+        return null;
+    }
+
+
     public static RequestDraft draft(
             ServerPlayer player
     ) {
@@ -708,6 +733,9 @@ public final class RequestManager {
             );
 
             publication.rotationActive = false;
+            publication.rotationMaxCopies = Math.max(1, draft.rotationCopies);
+            publication.rotationCopiesRemaining = publication.rotationMaxCopies;
+            publication.rotationRepeatable = draft.rotationRepeatable;
 
         } else {
             publication.availableBundles.add(
@@ -888,20 +916,17 @@ public final class RequestManager {
             return true;
         }
 
-        /*
-         * Si ya tiene claim y todavía conserva el papel,
-         * no puede tomar otro.
-         */
-        ActiveClaim existing =
-                publication.activeClaims.get(
-                        player.getUUID()
-                );
-
-        if (existing != null) {
-            return !playerHasPaper(
-                    player,
-                    requestId
-            );
+        /* La reserva es atómica en el hilo del servidor. */
+        if (findActivePublication(data, player.getUUID()) != null) {
+            player.sendSystemMessage(Component.literal(
+                    "Ya tienes una misión activa. Termínala antes de aceptar otra."));
+            return false;
+        }
+        if (publication.isRotation() && !publication.rotationRepeatable
+                && publication.rotationParticipants.contains(player.getUUID())) {
+            player.sendSystemMessage(Component.literal(
+                    "Esta misión no es repetible y ya la aceptaste anteriormente."));
+            return false;
         }
 
         if (!publication.isVisibleOnBoard()) {
@@ -917,7 +942,8 @@ public final class RequestManager {
 
         if (publication.kind
                 == RequestPublication.Kind.ROTATION
-                && publication.rotationRewardTemplate.isEmpty()) {
+                && (publication.rotationRewardTemplate.isEmpty()
+                        || publication.rotationCopiesRemaining <= 0)) {
 
             return false;
         }
@@ -963,6 +989,8 @@ public final class RequestManager {
                 claim
         );
 
+        RequestBountyData.setClaimOwner(paper, player.getUUID());
+
         if (publication.kind
                 == RequestPublication.Kind.BOARD) {
 
@@ -983,9 +1011,13 @@ public final class RequestManager {
              * La plantilla permanente queda intacta y podrá volver a ser
              * elegida en una rotación futura.
              */
-            publication.rotationActive = false;
-            publication.rotationAppearanceStartTick = 0L;
-            publication.rotationVisibleUntilTick = 0L;
+            publication.rotationCopiesRemaining--;
+            publication.rotationParticipants.add(player.getUUID());
+            if (publication.rotationCopiesRemaining <= 0) {
+                publication.rotationActive = false;
+                publication.rotationAppearanceStartTick = 0L;
+                publication.rotationVisibleUntilTick = 0L;
+            }
         }
 
         data.setDirty();
@@ -1025,6 +1057,11 @@ public final class RequestManager {
             return false;
         }
 
+        RequestSavedData data = RequestSavedData.get(player.server);
+        if (findActivePublication(data, player.getUUID()) != null) {
+            return false;
+        }
+
         long remaining =
                 new BountyStack(paper)
                         .getInfo()
@@ -1051,6 +1088,7 @@ public final class RequestManager {
                 player.getUUID(),
                 claim
         );
+        RequestBountyData.setClaimOwner(paper, player.getUUID());
 
         publication.state =
                 RequestPublication.State.CLAIMED;
@@ -1079,6 +1117,46 @@ public final class RequestManager {
         }
 
         return false;
+    }
+
+    /** Destrucción real (fuego, lava, explosión) de un papel ligado a su dueño. */
+    public static void onPaperDestroyed(MinecraftServer server, ItemStack paper) {
+        UUID requestId = RequestBountyData.getRequestId(paper);
+        UUID owner = RequestBountyData.getClaimOwner(paper);
+        if (requestId == null || owner == null) return;
+        RequestSavedData data = RequestSavedData.get(server);
+        RequestPublication publication = data.publications.get(requestId);
+        if (publication == null) return;
+        ActiveClaim claim = publication.activeClaims.remove(owner);
+        if (claim == null) return;
+        if (!publication.isRotation()) {
+            data.addReturn(publication.owner, claim.rewardBundle);
+            publication.state = RequestPublication.State.EXPIRED;
+        }
+        if (publication.state == RequestPublication.State.CLOSING
+                && publication.activeClaims.isEmpty()) {
+            publication.state = RequestPublication.State.REMOVED;
+        }
+        data.setDirty();
+    }
+
+    /** Sólo administradores pueden cancelar el encargo activo de alguien. */
+    public static boolean adminCancelClaim(MinecraftServer server, UUID playerId) {
+        RequestSavedData data = RequestSavedData.get(server);
+        RequestPublication publication = findActivePublication(data, playerId);
+        if (publication == null) return false;
+        ActiveClaim claim = publication.activeClaims.remove(playerId);
+        if (claim == null) return false;
+        if (!publication.isRotation()) {
+            data.addReturn(publication.owner, claim.rewardBundle);
+            publication.state = RequestPublication.State.EXPIRED;
+        }
+        if (publication.state == RequestPublication.State.CLOSING
+                && publication.activeClaims.isEmpty()) {
+            publication.state = RequestPublication.State.REMOVED;
+        }
+        data.setDirty();
+        return true;
     }
 
     // ------------------------------------------------------------
@@ -1712,6 +1790,8 @@ public final class RequestManager {
                 draft.pendingMode.name(),
                 pendingRemaining,
                 draft.rotationUses,
+                draft.rotationCopies,
+                draft.rotationRepeatable,
                 player.hasPermissions(2),
                 data.deliveries
                         .getOrDefault(
