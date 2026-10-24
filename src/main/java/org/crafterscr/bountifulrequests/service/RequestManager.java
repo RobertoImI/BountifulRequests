@@ -1090,6 +1090,7 @@ public final class RequestManager {
                 claim
         );
         RequestBountyData.setClaimOwner(paper, player.getUUID());
+        RequestBountyData.setClaimId(paper, claim.claimId);
 
         publication.state =
                 RequestPublication.State.CLAIMED;
@@ -1128,12 +1129,10 @@ public final class RequestManager {
         RequestSavedData data = RequestSavedData.get(server);
         RequestPublication publication = data.publications.get(requestId);
         if (publication == null) return;
-        ActiveClaim claim = publication.activeClaims.remove(owner);
-        if (claim == null) return;
-        if (claim.claimId == null || !claim.claimId.equals(RequestBountyData.getClaimId(paper))) {
-            publication.activeClaims.put(owner, claim);
-            return;
-        }
+        ActiveClaim claim = publication.activeClaims.get(owner);
+        if (claim == null || claim.claimId == null
+                || !claim.claimId.equals(RequestBountyData.getClaimId(paper))) return;
+        publication.activeClaims.remove(owner);
         if (!publication.isRotation()) {
             data.addReturn(publication.owner, claim.rewardBundle);
             publication.state = RequestPublication.State.EXPIRED;
