@@ -77,6 +77,8 @@ public final class RequestEditorScreen
 
     private EditBox titleBox;
     private EditBox durationBox;
+    private EditBox rotationCopiesBox;
+    private boolean localRotationRepeatable = true;
     private EditBox searchBox;
     private EditBox amountBox;
     private Button browserAddButton;
@@ -146,6 +148,7 @@ public final class RequestEditorScreen
     public void onServerSync(DraftView view) {
         this.state = view;
         this.localRarity = view.rarity();
+        this.localRotationRepeatable = view.rotationRepeatable();
 
         /*
          * Un sync normalmente significa que una acción terminó o que el
@@ -167,6 +170,7 @@ public final class RequestEditorScreen
         // Evita mantener referencias a EditBox que ya no están en pantalla.
         titleBox = null;
         durationBox = null;
+        rotationCopiesBox = null;
         searchBox = null;
         amountBox = null;
         browserAddButton = null;
@@ -452,6 +456,28 @@ public final class RequestEditorScreen
         );
 
         if (state.admin()) {
+            rotationCopiesBox = new EditBox(font, x + 284, y + 201, 50, 18,
+                    Component.literal("Copias de rotación"));
+            rotationCopiesBox.setMaxLength(4);
+            rotationCopiesBox.setValue(Integer.toString(state.rotationCopies()));
+            rotationCopiesBox.setResponder(text -> {
+                int count = Math.max(1, Math.min(9999, parseInt(text, 1)));
+                PacketDistributor.sendToServer(new EditorActionPayload(
+                        "SET_ROTATION_COPIES", "", "", count, 0, false));
+            });
+            addRenderableWidget(rotationCopiesBox);
+
+            addRenderableWidget(Button.builder(
+                    Component.literal("Repetir: " + (localRotationRepeatable ? "Sí" : "No")),
+                    button -> {
+                        localRotationRepeatable = !localRotationRepeatable;
+                        button.setMessage(Component.literal("Repetir: "
+                                + (localRotationRepeatable ? "Sí" : "No")));
+                        PacketDistributor.sendToServer(new EditorActionPayload(
+                                "SET_ROTATION_REPEAT", "", "", 0, 0,
+                                localRotationRepeatable));
+                    }).bounds(x + 240, y + 226, 94, 18).build());
+
             addRenderableWidget(
                     Button.builder(
                                     Component.translatable(
@@ -1237,12 +1263,12 @@ public final class RequestEditorScreen
                 0xAAAAAA
         );
 
-        // Panel derecho: recompensas.
+        // Panel derecho: recompensas y configuración de rotación.
         graphics.fill(
                 x + 236,
                 y + 32,
                 x + 340,
-                y + 225,
+                y + 250,
                 0x88242424
         );
 
@@ -1251,7 +1277,7 @@ public final class RequestEditorScreen
                 x + 236,
                 y + 32,
                 104,
-                193,
+                218,
                 0xFF3D3D3D
         );
 
@@ -1273,6 +1299,11 @@ public final class RequestEditorScreen
                 3,
                 3
         );
+
+        if (state.admin()) {
+            graphics.drawString(font, Component.literal("Copias:"),
+                    x + 240, y + 206, 0xCCCCCC);
+        }
 
         // Inventario.
         graphics.drawCenteredString(
