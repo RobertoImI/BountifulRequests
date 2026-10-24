@@ -297,6 +297,8 @@ public final class RequestSavedData extends SavedData {
                     "RotationUses",
                     draft.rotationUses
             );
+            tag.putInt("RotationCopies", draft.rotationCopies);
+            tag.putBoolean("RotationRepeatable", draft.rotationRepeatable);
 
             tag.put(
                     "PendingExtras",
@@ -360,6 +362,16 @@ public final class RequestSavedData extends SavedData {
                     "RotationActive",
                     publication.rotationActive
             );
+            tag.putInt("RotationMaxCopies", publication.rotationMaxCopies);
+            tag.putInt("RotationCopiesRemaining", publication.rotationCopiesRemaining);
+            tag.putBoolean("RotationRepeatable", publication.rotationRepeatable);
+            ListTag participantTags = new ListTag();
+            for (UUID participant : publication.rotationParticipants) {
+                CompoundTag participantTag = new CompoundTag();
+                participantTag.putUUID("Player", participant);
+                participantTags.add(participantTag);
+            }
+            tag.put("RotationParticipants", participantTags);
 
             tag.putLong(
                     "RotationAppearanceStartTick",
@@ -671,6 +683,10 @@ public final class RequestSavedData extends SavedData {
                             1,
                             tag.getInt("RotationUses")
                     );
+            draft.rotationCopies = tag.contains("RotationCopies")
+                    ? Math.max(1, Math.min(9999, tag.getInt("RotationCopies"))) : 1;
+            draft.rotationRepeatable = !tag.contains("RotationRepeatable")
+                    || tag.getBoolean("RotationRepeatable");
 
             draft.pendingExtraBundles.addAll(
                     StackSerialization.loadBundles(
@@ -751,6 +767,20 @@ public final class RequestSavedData extends SavedData {
                     tag.getBoolean(
                             "RotationActive"
                     );
+            publication.rotationMaxCopies = tag.contains("RotationMaxCopies")
+                    ? Math.max(1, tag.getInt("RotationMaxCopies")) : 1;
+            publication.rotationCopiesRemaining = tag.contains("RotationCopiesRemaining")
+                    ? Math.max(0, Math.min(publication.rotationMaxCopies,
+                            tag.getInt("RotationCopiesRemaining"))) : publication.rotationMaxCopies;
+            publication.rotationRepeatable = !tag.contains("RotationRepeatable")
+                    || tag.getBoolean("RotationRepeatable");
+            ListTag participants = tag.getList("RotationParticipants", Tag.TAG_COMPOUND);
+            for (int p = 0; p < participants.size(); p++) {
+                CompoundTag participant = participants.getCompound(p);
+                if (participant.hasUUID("Player")) {
+                    publication.rotationParticipants.add(participant.getUUID("Player"));
+                }
+            }
 
             publication.rotationAppearanceStartTick =
                     tag.getLong(
