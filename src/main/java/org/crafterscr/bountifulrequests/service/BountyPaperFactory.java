@@ -167,7 +167,10 @@ public final class BountyPaperFactory {
          */
         RequestBountyData.setDisplayData(
                 paper,
-                publication.title,
+                publication.isRotation()
+                        ? publication.title + " [" + publication.rotationCopiesRemaining
+                                + "/" + publication.rotationMaxCopies + "]"
+                        : publication.title,
                 startTime
                         + publication.durationSeconds * 20L,
                 rarity.ordinal()
