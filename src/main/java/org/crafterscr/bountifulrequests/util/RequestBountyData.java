@@ -18,6 +18,8 @@ import net.minecraft.world.item.component.CustomData;
  */
 public final class RequestBountyData {
 
+    private static final String CLAIM_OWNER = "ClaimOwner";
+
     private static final String REQUEST_ID =
             "BountifulRequestsId";
 
@@ -335,6 +337,17 @@ public final class RequestBountyData {
             int amount,
             int progress
     ) {
+    }
+
+    public static void setClaimOwner(ItemStack stack, UUID owner) {
+        CompoundTag tag = copyCustomData(stack);
+        tag.putUUID(CLAIM_OWNER, owner);
+        setCustomData(stack, tag);
+    }
+
+    public static UUID getClaimOwner(ItemStack stack) {
+        CompoundTag tag = copyCustomData(stack);
+        return tag.hasUUID(CLAIM_OWNER) ? tag.getUUID(CLAIM_OWNER) : null;
     }
 
     public static UUID getRequestId(
