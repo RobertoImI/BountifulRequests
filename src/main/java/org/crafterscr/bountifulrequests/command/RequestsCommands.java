@@ -93,6 +93,27 @@ public final class RequestsCommands {
                         )
 
                         .then(
+                                Commands.literal("claim-repair")
+                                        .requires(source -> source.hasPermission(2))
+                                        .then(Commands.argument("player", EntityArgument.player())
+                                                .executes(context -> {
+                                                    ServerPlayer target = EntityArgument.getPlayer(context, "player");
+                                                    if (!RequestManager.adminRepairMissingPaper(
+                                                            context.getSource().getServer(), target.getUUID())) {
+                                                        context.getSource().sendFailure(Component.literal(
+                                                                "No hay reserva activa que reparar para este jugador."));
+                                                        return 0;
+                                                    }
+                                                    context.getSource().sendSuccess(() -> Component.literal(
+                                                            "Reserva fantasma reparada para " + target.getGameProfile().getName()
+                                                                    + ". Se restauró la copia si era de rotación."), true);
+                                                    target.sendSystemMessage(Component.literal(
+                                                            "Un administrador reparó tu misión bloqueada. Puedes aceptar otra."));
+                                                    return 1;
+                                                }))
+                        )
+
+                        .then(
                                 Commands.literal("list")
                                         .executes(context ->
                                                 listRequests(
