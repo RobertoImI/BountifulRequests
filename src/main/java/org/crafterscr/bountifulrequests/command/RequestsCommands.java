@@ -73,44 +73,48 @@ public final class RequestsCommands {
                         .then(
                                 Commands.literal("claim")
                                         .requires(source -> source.hasPermission(2))
-                                        .then(Commands.literal("cancel")
-                                                .then(Commands.argument("player", EntityArgument.player())
-                                                        .executes(context -> {
-                                                            ServerPlayer target = EntityArgument.getPlayer(context, "player");
-                                                            boolean cancelled = RequestManager.adminCancelClaim(
-                                                                    context.getSource().getServer(), target.getUUID());
-                                                            if (!cancelled) {
-                                                                context.getSource().sendFailure(Component.literal(
-                                                                        "Este jugador no tiene una misión personalizada activa."));
-                                                                return 0;
-                                                            }
-                                                            context.getSource().sendSuccess(() -> Component.literal(
-                                                                    "Misión activa cancelada para " + target.getGameProfile().getName()), true);
-                                                            target.sendSystemMessage(Component.literal(
-                                                                    "Un administrador canceló tu misión activa."));
-                                                            return 1;
-                                                        }))))
-                        )
-
-                        .then(
-                                Commands.literal("claim-repair")
-                                        .requires(source -> source.hasPermission(2))
-                                        .then(Commands.argument("player", EntityArgument.player())
-                                                .executes(context -> {
-                                                    ServerPlayer target = EntityArgument.getPlayer(context, "player");
-                                                    if (!RequestManager.adminRepairMissingPaper(
-                                                            context.getSource().getServer(), target.getUUID())) {
-                                                        context.getSource().sendFailure(Component.literal(
-                                                                "No hay reserva activa que reparar para este jugador."));
-                                                        return 0;
-                                                    }
-                                                    context.getSource().sendSuccess(() -> Component.literal(
-                                                            "Reserva fantasma reparada para " + target.getGameProfile().getName()
-                                                                    + ". Se restauró la copia si era de rotación."), true);
-                                                    target.sendSystemMessage(Component.literal(
-                                                            "Un administrador reparó tu misión bloqueada. Puedes aceptar otra."));
-                                                    return 1;
-                                                }))
+                                        .then(
+                                                Commands.literal("cancel")
+                                                        .then(
+                                                                Commands.argument("player", EntityArgument.player())
+                                                                        .executes(context -> {
+                                                                            ServerPlayer target = EntityArgument.getPlayer(context, "player");
+                                                                            boolean cancelled = RequestManager.adminCancelClaim(
+                                                                                    context.getSource().getServer(), target.getUUID());
+                                                                            if (!cancelled) {
+                                                                                context.getSource().sendFailure(Component.literal(
+                                                                                        "Este jugador no tiene una misión personalizada activa."));
+                                                                                return 0;
+                                                                            }
+                                                                            context.getSource().sendSuccess(() -> Component.literal(
+                                                                                    "Misión activa cancelada para " + target.getGameProfile().getName()), true);
+                                                                            target.sendSystemMessage(Component.literal(
+                                                                                    "Un administrador canceló tu misión activa."));
+                                                                            return 1;
+                                                                        })
+                                                        )
+                                        )
+                                        .then(
+                                                Commands.literal("repair")
+                                                        .then(
+                                                                Commands.argument("player", EntityArgument.player())
+                                                                        .executes(context -> {
+                                                                            ServerPlayer target = EntityArgument.getPlayer(context, "player");
+                                                                            if (!RequestManager.adminRepairMissingPaper(
+                                                                                    context.getSource().getServer(), target.getUUID())) {
+                                                                                context.getSource().sendFailure(Component.literal(
+                                                                                        "No hay reserva activa que reparar para este jugador."));
+                                                                                return 0;
+                                                                            }
+                                                                            context.getSource().sendSuccess(() -> Component.literal(
+                                                                                    "Reserva fantasma reparada para " + target.getGameProfile().getName()
+                                                                                            + ". Se restauró la copia si era de rotación."), true);
+                                                                            target.sendSystemMessage(Component.literal(
+                                                                                    "Un administrador reparó tu misión bloqueada. Puedes aceptar otra."));
+                                                                            return 1;
+                                                                        })
+                                                        )
+                                        )
                         )
 
                         .then(
