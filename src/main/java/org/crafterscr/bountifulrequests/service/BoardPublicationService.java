@@ -146,6 +146,21 @@ public final class BoardPublicationService {
                 continue;
             }
 
+            /* Un solo slot físico, aunque queden muchas copias.
+             * Se actualiza su contador para todos los clientes cada sync.
+             */
+            if (publication.isRotation()) {
+                String expected = publication.title + " ["
+                        + publication.rotationCopiesRemaining + "/"
+                        + publication.rotationMaxCopies + "]";
+                if (!expected.equals(RequestBountyData.getRequestTitle(stack))) {
+                    removeSlot(accessor, board, inventory, slot);
+                    ItemStack updated = BountyPaperFactory.create(publication, level, board.getBlockPos());
+                    accessor.bountifulrequests$addBounty(slot, updated);
+                    inventory.setItem(slot, updated.copy());
+                    board.setChanged();
+                }
+            }
             existing.add(id);
         }
 
