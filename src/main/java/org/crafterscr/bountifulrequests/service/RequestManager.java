@@ -916,10 +916,41 @@ public final class RequestManager {
             return true;
         }
 
-        /* La reserva es atómica en el hilo del servidor. */
-        if (findActivePublication(data, player.getUUID()) != null) {
+        /*
+         * Bountiful / AbstractContainerMenu puede llamar a mayPickup varias
+         * veces para UN SOLO clic. La primera llamada reserva el premio y
+         * etiqueta el ItemStack del slot con ClaimOwner + ClaimId. Las
+         * siguientes llamadas deben permitir exactamente ESA aceptación,
+         * nunca crear otra reserva ni descontar otra copia.
+         *
+         * Es crítico comprobar esto ANTES del límite global de una misión.
+         */
+        ActiveClaim sameRequestClaim =
+                publication.activeClaims.get(player.getUUID());
+
+        if (sameRequestClaim != null) {
+            UUID paperOwner = RequestBountyData.getClaimOwner(paper);
+            UUID paperClaimId = RequestBountyData.getClaimId(paper);
+
+            if (player.getUUID().equals(paperOwner)
+                    && sameRequestClaim.claimId != null
+                    && sameRequestClaim.claimId.equals(paperClaimId)) {
+                return true;
+            }
+
             player.sendSystemMessage(Component.literal(
-                    "Ya tienes una misión activa. Termínala antes de aceptar otra."));
+                    "Ya tienes este encargo activo. No puedes tomar otra copia."));
+            return false;
+        }
+
+        RequestPublication otherActive =
+                findActivePublication(data, player.getUUID());
+
+        if (otherActive != null) {
+            player.sendSystemMessage(Component.literal(
+                    "Ya tienes una misión activa: " + otherActive.title
+                            + " (#" + otherActive.shortId + "). "
+                            + "Termínala, espera que expire o pide a un OP que la cancele."));
             return false;
         }
         if (publication.isRotation() && !publication.rotationRepeatable
