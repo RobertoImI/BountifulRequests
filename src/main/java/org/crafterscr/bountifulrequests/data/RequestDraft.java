@@ -48,6 +48,10 @@ public final class RequestDraft {
      */
     public int rotationUses = 1;
 
+    /** Sólo para nuevas rotaciones; no afecta Publicar ahora. */
+    public int rotationCopies = 1;
+    public boolean rotationRepeatable = true;
+
     public final List<List<ItemStack>> pendingExtraBundles =
             new ArrayList<>();
 
@@ -73,6 +77,8 @@ public final class RequestDraft {
         title = "";
         rarity = 0;
         durationSeconds = 30 * 60L;
+        rotationCopies = 1;
+        rotationRepeatable = true;
 
         objectives.clear();
 
