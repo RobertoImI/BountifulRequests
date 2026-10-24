@@ -17,6 +17,8 @@ public record DraftView(
         String pendingMode,
         long pendingRemainingTicks,
         int rotationUses,
+        int rotationCopies,
+        boolean rotationRepeatable,
         boolean admin,
         int deliveries,
         int returns
