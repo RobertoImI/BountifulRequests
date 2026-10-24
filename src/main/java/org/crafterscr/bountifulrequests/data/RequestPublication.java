@@ -1,6 +1,8 @@
 package org.crafterscr.bountifulrequests.data;
 
 import java.util.ArrayList;
+import java.util.LinkedHashSet;
+import java.util.Set;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -75,6 +77,13 @@ public final class RequestPublication {
      */
     public boolean rotationActive = false;
 
+    /** Total de aceptaciones de esta plantilla, no por ciclo. */
+    public int rotationMaxCopies = 1;
+    public int rotationCopiesRemaining = 1;
+    public boolean rotationRepeatable = true;
+    /** Jugadores que aceptaron alguna vez esta plantilla. */
+    public final Set<UUID> rotationParticipants = new LinkedHashSet<>();
+
     /**
      * Ventana global de la aparición actual de una ROTATION.
      *
@@ -120,6 +129,7 @@ public final class RequestPublication {
             case BOARD -> !availableBundles.isEmpty();
             case ROTATION ->
                     rotationActive
+                            && rotationCopiesRemaining > 0
                             && !rotationRewardTemplate.isEmpty();
             case HANDOUT -> false;
         };
