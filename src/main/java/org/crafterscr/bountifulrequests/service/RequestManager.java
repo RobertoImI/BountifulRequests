@@ -1007,10 +1007,9 @@ public final class RequestManager {
                 == RequestPublication.Kind.ROTATION) {
 
             /*
-             * Cada APARICIÓN de una rotación también es global y exclusiva.
-             * El primer jugador que la toma la retira de todos los Boards.
-             * La plantilla permanente queda intacta y podrá volver a ser
-             * elegida en una rotación futura.
+             * Cada aceptación consume UNA copia global y permanente.
+             * Sólo al llegar a cero desaparece de todos los Boards;
+             * cambiar de rotación no restaura las copias consumidas.
              */
             publication.rotationCopiesRemaining--;
             publication.rotationParticipants.add(player.getUUID());
