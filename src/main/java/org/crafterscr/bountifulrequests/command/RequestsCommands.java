@@ -19,6 +19,7 @@ import com.mojang.brigadier.tree.CommandNode;
 
 import net.minecraft.commands.CommandSourceStack;
 import net.minecraft.commands.Commands;
+import net.minecraft.commands.arguments.EntityArgument;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.level.ServerPlayer;
 
@@ -67,6 +68,28 @@ public final class RequestsCommands {
 
                                             return 1;
                                         })
+                        )
+
+                        .then(
+                                Commands.literal("claim")
+                                        .requires(source -> source.hasPermission(2))
+                                        .then(Commands.literal("cancel")
+                                                .then(Commands.argument("player", EntityArgument.player())
+                                                        .executes(context -> {
+                                                            ServerPlayer target = EntityArgument.getPlayer(context, "player");
+                                                            boolean cancelled = RequestManager.adminCancelClaim(
+                                                                    context.getSource().getServer(), target.getUUID());
+                                                            if (!cancelled) {
+                                                                context.getSource().sendFailure(Component.literal(
+                                                                        "Este jugador no tiene una misión personalizada activa."));
+                                                                return 0;
+                                                            }
+                                                            context.getSource().sendSuccess(() -> Component.literal(
+                                                                    "Misión activa cancelada para " + target.getGameProfile().getName()), true);
+                                                            target.sendSystemMessage(Component.literal(
+                                                                    "Un administrador canceló tu misión activa."));
+                                                            return 1;
+                                                        }))))
                         )
 
                         .then(
@@ -397,6 +420,11 @@ public final class RequestsCommands {
                                     + "/"
                                     + extra
                                     + "]"
+                                    + (publication.isRotation()
+                                        ? " Copias: " + publication.rotationCopiesRemaining + "/"
+                                            + publication.rotationMaxCopies + " Repetir: "
+                                            + (publication.rotationRepeatable ? "Sí" : "No")
+                                        : "")
                     ),
                     false
             );
