@@ -97,6 +97,16 @@ public final class RequestNetwork {
                 sync = false;
             }
 
+            case "SET_ROTATION_COPIES" -> {
+                RequestManager.setRotationCopies(player, packet.value());
+                sync = false;
+            }
+
+            case "SET_ROTATION_REPEAT" -> {
+                RequestManager.setRotationRepeatable(player, packet.flag());
+                sync = false;
+            }
+
             case "SET_DURATION" -> {
                 RequestManager.setDuration(
                         player,
