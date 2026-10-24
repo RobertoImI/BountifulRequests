@@ -98,7 +98,7 @@ public final class RotationManager {
                                         == RequestPublication.State.OPEN
                         )
                         .filter(publication ->
-                                publication.rotationActive
+                                publication.rotationActive && publication.rotationCopiesRemaining > 0
                         )
                         .count();
 
@@ -135,6 +135,7 @@ public final class RotationManager {
                                 !publication.rotationRewardTemplate
                                         .isEmpty()
                         )
+                        .filter(publication -> publication.rotationCopiesRemaining > 0)
                         .toList();
 
         int target =
