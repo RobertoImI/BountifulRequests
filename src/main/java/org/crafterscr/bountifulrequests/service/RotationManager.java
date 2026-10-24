@@ -16,9 +16,10 @@ import net.minecraft.server.MinecraftServer;
  *
  * Una aparición de rotación es GLOBAL:
  * - se muestra en todos los Boards;
- * - el primer jugador que la toma la desactiva para todos;
+ * - cada aceptación consume una copia persistente para todos los Boards;
+ * - se desactiva al gastarse la última copia;
  * - si nadie la toma, desaparece cuando vence su duración;
- * - una plantilla inactiva puede volver a ser elegida en una rotación futura.
+ * - una plantilla inactiva con copias restantes puede volver a salir sin reponerlas.
  */
 public final class RotationManager {
 
