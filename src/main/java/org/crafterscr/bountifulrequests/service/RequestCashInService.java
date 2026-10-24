@@ -100,7 +100,9 @@ public final class RequestCashInService {
                         player.getUUID()
                 );
 
-        if (claim == null) {
+        if (claim == null
+                || (claim.claimId != null
+                    && !claim.claimId.equals(RequestBountyData.getClaimId(paper)))) {
             player.sendSystemMessage(
                     Component.translatable(
                             "bountifulrequests.message.not_claimed"
