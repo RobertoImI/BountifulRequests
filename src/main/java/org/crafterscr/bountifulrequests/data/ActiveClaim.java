@@ -18,6 +18,9 @@ public final class ActiveClaim {
 
     public final UUID player;
 
+    /** Token único; impide que un papel viejo cancele o complete un claim nuevo. */
+    public UUID claimId = UUID.randomUUID();
+
     public long expiresAtTick;
 
     public final List<ItemStack> rewardBundle = new ArrayList<>();
