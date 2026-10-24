@@ -1193,6 +1193,41 @@ public final class RequestManager {
         return true;
     }
 
+    /**
+     * Reparación OP de claims fantasma originados por intentos fallidos de
+     * sacar un papel del tablón. A diferencia de la cancelación normal,
+     * devuelve una copia de ROTATION y borra la participación accidental.
+     *
+     * Úsese sólo cuando el jugador confirma que NO recibió el papel.
+     */
+    public static boolean adminRepairMissingPaper(MinecraftServer server, UUID playerId) {
+        RequestSavedData data = RequestSavedData.get(server);
+        RequestPublication publication = findActivePublication(data, playerId);
+        if (publication == null) return false;
+
+        ActiveClaim claim = publication.activeClaims.remove(playerId);
+        if (claim == null) return false;
+
+        if (publication.isRotation()) {
+            publication.rotationCopiesRemaining = Math.min(
+                    publication.rotationMaxCopies,
+                    publication.rotationCopiesRemaining + 1
+            );
+            publication.rotationParticipants.remove(playerId);
+        } else {
+            data.addReturn(publication.owner, claim.rewardBundle);
+            publication.state = RequestPublication.State.EXPIRED;
+        }
+
+        if (publication.state == RequestPublication.State.CLOSING
+                && publication.activeClaims.isEmpty()) {
+            publication.state = RequestPublication.State.REMOVED;
+        }
+
+        data.setDirty();
+        return true;
+    }
+
     // ------------------------------------------------------------
     // COBBLEMON PROGRESS
     // ------------------------------------------------------------
