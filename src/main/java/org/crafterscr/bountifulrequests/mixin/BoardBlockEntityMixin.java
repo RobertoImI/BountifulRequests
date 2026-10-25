@@ -1,10 +1,14 @@
 package org.crafterscr.bountifulrequests.mixin;
 
+import org.crafterscr.bountifulrequests.BountifulRequests;
 import org.crafterscr.bountifulrequests.data.RequestSavedData;
 import org.crafterscr.bountifulrequests.service.BoardPublicationService;
 
+import io.ejekta.bountiful.content.BountifulContent;
 import io.ejekta.bountiful.content.board.BoardBlockEntity;
 
+import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.level.Level;
 
 import org.spongepowered.asm.mixin.Mixin;
@@ -84,5 +88,43 @@ public abstract class BoardBlockEntityMixin {
         BoardPublicationService.sync(
                 board
         );
+    }
+
+    /**
+     * Bountiful 8.0.0-beta.2 assumes every inserted decree has DECREE_DATA.
+     * Invalid or legacy decree stacks may lack the component, causing an NPE
+     * inside checkUserPlacedAllDecrees() during a board container click.
+     *
+     * Skip only the unsafe completion check for that stack; leave regular
+     * decrees and the board inventory untouched.
+     */
+    @Inject(
+            method = "checkUserPlacedAllDecrees(Lnet/minecraft/server/level/ServerPlayer;Lnet/minecraft/world/item/ItemStack;)V",
+            at = @At("HEAD"),
+            cancellable = true
+    )
+    private void bountifulrequests$guardMissingDecreeData(
+            ServerPlayer player,
+            ItemStack decreeStack,
+            CallbackInfo ci
+    ) {
+        // Empty stacks already return safely in Bountiful's own method.
+        if (decreeStack.isEmpty()) {
+            return;
+        }
+
+        if (decreeStack.get(BountifulContent.INSTANCE.getDECREE_DATA()) != null) {
+            return;
+        }
+
+        BountifulRequests.LOGGER.warn(
+                "Skipped unsafe Bountiful decree completion check: " +
+                        "missing DECREE_DATA at board {} (player: {}, item: {}).",
+                ((BoardBlockEntity) (Object) this).getBlockPos(),
+                player.getGameProfile().getName(),
+                decreeStack.getItem()
+        );
+
+        ci.cancel();
     }
 }
