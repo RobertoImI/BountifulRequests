@@ -1,6 +1,5 @@
 package org.crafterscr.bountifulrequests.mixin;
 
-import org.crafterscr.bountifulrequests.BountifulRequests;
 import org.crafterscr.bountifulrequests.data.RequestSavedData;
 import org.crafterscr.bountifulrequests.service.BoardPublicationService;
 
@@ -116,14 +115,6 @@ public abstract class BoardBlockEntityMixin {
         if (decreeStack.get(BountifulContent.INSTANCE.getDECREE_DATA()) != null) {
             return;
         }
-
-        BountifulRequests.LOGGER.warn(
-                "Skipped unsafe Bountiful decree completion check: " +
-                        "missing DECREE_DATA at board {} (player: {}, item: {}).",
-                ((BoardBlockEntity) (Object) this).getBlockPos(),
-                player.getGameProfile().getName(),
-                decreeStack.getItem()
-        );
 
         ci.cancel();
     }
